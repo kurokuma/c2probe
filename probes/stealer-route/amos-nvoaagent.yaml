@@ -1,0 +1,22 @@
+parameters:
+  amos.nvoaagent_expected_ip: { type: ip, required: true }
+dsl_version: 1
+name: amos-nvoaagent-ledger-route-v1
+metadata: { family: amosstealer, protocol: reviewed_http_route_observation, plan_order: 510, description: Reviewed AMOS ledger route pair plus a negative control. }
+scope: { ips: ["${amos.nvoaagent_expected_ip}"], ports: [443] }
+transport: { type: tls, server_name: nvoaagent.com, connect_timeout_ms: 1000, read_timeout_ms: 3000, insecure_tls: true }
+steps:
+  - send_http: { method: HEAD, path: /ledger/93ea36a257de15f2fe3f9d5d32fb19ee6e040fa3cd57131dedc33c740d868a89, headers: { Host: nvoaagent.com, User-Agent: "AI-security-analysis reviewed-route probe/1.0", Accept: "*/*", Connection: close } }
+  - recv_http: { max_header_bytes: 4096, max_body_bytes: 0, headers_only: true, body_as: route1_body, header_as: route1_header, status_as: route1_status, content_length_as: route1_length }
+  - reconnect: {}
+  - send_http: { method: HEAD, path: /ledger/live/93ea36a257de15f2fe3f9d5d32fb19ee6e040fa3cd57131dedc33c740d868a89, headers: { Host: nvoaagent.com, User-Agent: "AI-security-analysis reviewed-route probe/1.0", Accept: "*/*", Connection: close } }
+  - recv_http: { max_header_bytes: 4096, max_body_bytes: 0, headers_only: true, body_as: route2_body, header_as: route2_header, status_as: route2_status, content_length_as: route2_length }
+  - reconnect: {}
+  - send_http: { method: HEAD, path: /.well-known/asa-reviewed-route-negative-control-7f6d9e2b, headers: { Host: nvoaagent.com, User-Agent: "AI-security-analysis reviewed-route probe/1.0", Accept: "*/*", Connection: close } }
+  - recv_http: { max_header_bytes: 4096, max_body_bytes: 0, headers_only: true, body_as: control_body, header_as: control_header, status_as: control_status, content_length_as: control_length }
+  - match:
+      all:
+        - any: [{ eq: { left: "$route1_status", right: 200 } }, { eq: { left: "$route1_status", right: 204 } }, { eq: { left: "$route1_status", right: 401 } }, { eq: { left: "$route1_status", right: 403 } }, { eq: { left: "$route1_status", right: 405 } }]
+        - any: [{ eq: { left: "$route2_status", right: 200 } }, { eq: { left: "$route2_status", right: 204 } }, { eq: { left: "$route2_status", right: 401 } }, { eq: { left: "$route2_status", right: 403 } }, { eq: { left: "$route2_status", right: 405 } }]
+        - any: [{ eq: { left: "$control_status", right: 400 } }, { eq: { left: "$control_status", right: 404 } }, { eq: { left: "$control_status", right: 410 } }]
+result: { family: amosstealer, protocol: reviewed_http_route_observation, classification: probable, confidence: 0.65, status: amos_reviewed_ledger_pair_match, unmatched_status: amos_reviewed_ledger_pair_mismatch, fields: { route1_status: "$route1_status", route2_status: "$route2_status", control_status: "$control_status", request_body_sent: false, victim_metadata_sent: false } }

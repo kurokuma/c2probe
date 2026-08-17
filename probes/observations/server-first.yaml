@@ -1,0 +1,24 @@
+dsl_version: 1
+name: transport-server-first-observation
+metadata:
+  family: unclassified
+  protocol: server_first_transport_only
+  plan_order: 900
+  description: Bounded server-first observation; sends no application data and never confirms C2.
+transport: { type: tcp, connect_timeout_ms: 1000, read_timeout_ms: 1000 }
+steps:
+  - recv_up_to: { min_bytes: 1, max_bytes: 256, save_as: banner }
+  - extract: { source: banner, name: banner_length, type: bufferlen, offset: 0 }
+  - match: { gt: { left: "$banner_length", right: 0 } }
+result:
+  family: unclassified
+  protocol: server_first_transport_only
+  classification: observation
+  confirmed: "$match"
+  confidence: 0.15
+  unmatched_confidence: 0.0
+  status: server_first_banner_observed
+  unmatched_status: server_first_banner_missing
+  fields:
+    banner_length: "$banner_length"
+    application_data_sent: false

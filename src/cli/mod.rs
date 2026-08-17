@@ -1,4 +1,6 @@
-use std::{ffi::OsString, net::IpAddr, path::PathBuf, str::FromStr, time::Duration};
+use std::{
+    collections::HashMap, ffi::OsString, net::IpAddr, path::PathBuf, str::FromStr, time::Duration,
+};
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, ValueEnum};
@@ -23,6 +25,7 @@ pub enum OutputMode {
     All,
     Open,
     Responsive,
+    Detected,
     Matched,
 }
 
@@ -57,6 +60,9 @@ pub struct Args {
     pub probes: Vec<PathBuf>,
     #[arg(long)]
     pub probe_dir: Option<PathBuf>,
+    /// Runtime values for parameterized probes, as NAME=VALUE. Values are never logged.
+    #[arg(long = "probe-param")]
+    pub probe_params: Vec<String>,
     #[arg(long, default_value_t = 100_000)]
     pub syn_rate: u64,
     #[arg(long, default_value_t = 100_000)]
@@ -246,6 +252,25 @@ impl Args {
             .as_deref()
             .map(crate::affinity::parse_cpu_set)
             .transpose()
+    }
+
+    pub fn probe_parameter_map(&self) -> Result<HashMap<String, String>> {
+        let mut parameters = HashMap::new();
+        for raw in &self.probe_params {
+            let (name, value) = raw
+                .split_once('=')
+                .with_context(|| format!("invalid --probe-param {raw:?}; expected NAME=VALUE"))?;
+            if name.is_empty() || value.is_empty() {
+                bail!("--probe-param name and value must be non-empty");
+            }
+            if parameters
+                .insert(name.to_owned(), value.to_owned())
+                .is_some()
+            {
+                bail!("duplicate --probe-param {name}");
+            }
+        }
+        Ok(parameters)
     }
 }
 

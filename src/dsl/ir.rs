@@ -1,4 +1,6 @@
 use super::TransportType;
+use ipnet::IpNet;
+use regex::bytes::Regex;
 use serde_json::Value;
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
@@ -13,6 +15,9 @@ pub struct CompiledProbe {
     pub read_timeout: Duration,
     pub insecure_tls: bool,
     pub server_name: Option<Arc<str>>,
+    pub prelude: Option<Arc<[u8]>>,
+    pub scope_ips: Arc<[IpNet]>,
+    pub scope_ports: Arc<[u16]>,
     pub ops: Arc<[Op]>,
     pub result: CompiledResult,
 }
@@ -21,6 +26,10 @@ pub struct CompiledProbe {
 pub enum Op {
     SendLiteral(Arc<[u8]>),
     SendBuffer(usize),
+    Literal {
+        data: Arc<[u8]>,
+        dst: usize,
+    },
     Pack {
         expr: ValueExpr,
         kind: NumberKind,
@@ -37,6 +46,52 @@ pub enum Op {
         length: usize,
         dst: usize,
     },
+    RecvUpTo {
+        min: usize,
+        max: usize,
+        dst: usize,
+    },
+    RecvUntil {
+        delimiter: Arc<[u8]>,
+        max: usize,
+        dst: usize,
+    },
+    RecvFrame {
+        kind: NumberKind,
+        min: usize,
+        max: usize,
+        dst: usize,
+        length_dst: usize,
+    },
+    RecvHttp {
+        max_header: usize,
+        max_body: usize,
+        headers_only: bool,
+        header_dst: usize,
+        body_dst: usize,
+        status_dst: usize,
+        content_length_dst: usize,
+    },
+    SendHttp {
+        method: Arc<str>,
+        path: Arc<str>,
+        headers: Arc<[(Arc<str>, Arc<str>)]>,
+        body_src: Option<usize>,
+    },
+    Reconnect,
+    PeerCertificateSha256 {
+        dst: usize,
+    },
+    Transform {
+        src: usize,
+        dst: usize,
+        kind: TransformKind,
+    },
+    RejectIf {
+        condition: BoolExpr,
+        confidence: f64,
+        status: Arc<str>,
+    },
     Extract {
         src: usize,
         offset: usize,
@@ -44,6 +99,16 @@ pub enum Op {
         dst: usize,
     },
     Crc32 {
+        src: usize,
+        offset: usize,
+        length: usize,
+        dst: usize,
+    },
+    BufferLen {
+        src: usize,
+        dst: usize,
+    },
+    AsciiDecimal {
         src: usize,
         offset: usize,
         length: usize,
@@ -58,6 +123,16 @@ pub enum Op {
         confidence: Option<f64>,
         status: Option<Arc<str>>,
     },
+}
+
+#[derive(Debug, Clone)]
+pub enum TransformKind {
+    AsciiHexDecode,
+    Base64Decode,
+    Base64Encode,
+    Rc4(Arc<[u8]>),
+    GzipDecompress { offset: usize, max: usize },
+    MsgpackString { key: Arc<str> },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -119,10 +194,23 @@ pub enum BoolExpr {
         offset: usize,
         bytes: Arc<[u8]>,
     },
+    BytesContains {
+        src: usize,
+        bytes: Arc<[u8]>,
+    },
+    BytesRegex {
+        src: usize,
+        regex: Arc<Regex>,
+    },
+    BufferStartsWith {
+        src: usize,
+        prefix: usize,
+    },
 }
 
 #[derive(Debug, Clone)]
 pub struct CompiledResult {
+    pub classification: MatchClass,
     pub confidence: f64,
     pub unmatched_confidence: f64,
     pub status: Arc<str>,
@@ -130,8 +218,25 @@ pub struct CompiledResult {
     pub fields: BTreeMap<String, FieldTemplate>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MatchClass {
+    Confirmed,
+    Probable,
+    Observation,
+}
+
+impl CompiledProbe {
+    pub fn allows(&self, ip: std::net::IpAddr, port: u16) -> bool {
+        (self.scope_ips.is_empty() || self.scope_ips.iter().any(|net| net.contains(&ip)))
+            && (self.scope_ports.is_empty() || self.scope_ports.contains(&port))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum FieldTemplate {
     Register(usize),
+    BufferHex(usize),
+    BufferText(usize),
+    Rejected,
     Literal(Value),
 }

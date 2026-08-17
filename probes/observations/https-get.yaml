@@ -1,0 +1,31 @@
+dsl_version: 1
+name: transport-https-get-observation
+metadata:
+  family: unclassified
+  protocol: https_transport_only
+  plan_order: 921
+  description: Single bounded HTTPS GET; redirects are not followed and no C2 claim is made.
+transport: { type: tls, connect_timeout_ms: 1000, read_timeout_ms: 1000, insecure_tls: true }
+steps:
+  - send_http:
+      method: GET
+      path: /
+      headers: { Host: "$target_ip", User-Agent: "AI-security-analysis-NSE/1", Connection: close }
+  - recv_http:
+      max_header_bytes: 4096
+      max_body_bytes: 4096
+      header_as: header
+      body_as: body
+      status_as: http_status
+      content_length_as: content_length
+  - match: { all: [ { gt: { left: "$http_status", right: 99 } }, { lt: { left: "$http_status", right: 600 } } ] }
+result:
+  family: unclassified
+  protocol: https_transport_only
+  classification: observation
+  confirmed: "$match"
+  confidence: 0.45
+  unmatched_confidence: 0.15
+  status: http_response_observed
+  unmatched_status: http_response_missing_or_invalid
+  fields: { http_status: "$http_status", redirect_followed: false, application_data_sent: true }

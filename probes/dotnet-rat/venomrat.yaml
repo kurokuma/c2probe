@@ -1,0 +1,29 @@
+dsl_version: 1
+name: venomrat-messagepack-ping
+metadata:
+  family: venomrat
+  protocol: tls_compressed_messagepack
+  plan_order: 111
+  description: Anonymous compressed MessagePack Ping matching Pac_ket=Po_ng.
+transport: { type: tls, connect_timeout_ms: 1000, read_timeout_ms: 1000, insecure_tls: true }
+steps:
+  - peer_certificate: { save_as: certificate_sha256 }
+  - send: { hex: "2f000000170000001f8b08000000000000ff6b5a1e90981c9f9d5ab22420332f7db96f6a7171627aea02001490a96217000000" }
+  - recv_frame: { type: u32le, min_bytes: 5, max_bytes: 64, save_as: payload, length_as: declared_length }
+  - extract: { source: payload, name: raw_size, type: u32le, offset: 0 }
+  - transform: { source: payload, name: decoded, gzip_decompress: { offset: 4, max_bytes: 64 } }
+  - extract: { source: decoded, name: decoded_size, type: bufferlen, offset: 0 }
+  - transform: { source: decoded, name: packet, msgpack_string: { key: Pac_ket } }
+  - match:
+      all:
+        - eq: { left: "$decoded_size", right: "$raw_size" }
+        - bytes_eq: { source: packet, offset: 0, hex: "50 6f 5f 6e 67" }
+result:
+  family: venomrat
+  protocol: tls_compressed_messagepack
+  confirmed: "$match"
+  confidence: 0.98
+  unmatched_confidence: 0.55
+  status: messagepack_ping_response_match
+  unmatched_status: messagepack_response_mismatch
+  fields: { declared_length: "$declared_length", response_packet: "$text:packet", certificate_sha256: "$hex:certificate_sha256", certificate_mismatch_excludes_c2: false, victim_metadata_sent: false }

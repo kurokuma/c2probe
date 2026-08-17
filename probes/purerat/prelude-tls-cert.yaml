@@ -1,0 +1,21 @@
+parameters:
+  purerat.expected_cert: { type: hex, required: true, min_length: 64, max_length: 64 }
+dsl_version: 1
+name: purerat-prelude-tls-certificate-match
+metadata:
+  family: purehvnc
+  protocol: purerat_prelude_tls12
+  plan_order: 201
+  description: Match a supplied reviewed leaf certificate after the PureRAT plaintext prelude.
+transport: { type: starttls, prelude_hex: "04 00 00 00", connect_timeout_ms: 1000, read_timeout_ms: 1000, insecure_tls: true }
+steps:
+  - peer_certificate: { save_as: certificate_sha256 }
+  - match: { bytes_eq: { source: certificate_sha256, offset: 0, hex: "${purerat.expected_cert}" } }
+result:
+  family: purehvnc
+  protocol: purerat_prelude_tls12
+  confidence: 0.95
+  unmatched_confidence: 0.62
+  status: purerat_prelude_tls_certificate_match
+  unmatched_status: purerat_prelude_tls_observed
+  fields: { variant: managed_purerat, prelude_hex: "04000000", certificate_sha256: "$hex:certificate_sha256", certificate_mismatch_excludes_c2: false, victim_metadata_sent: false }

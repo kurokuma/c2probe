@@ -1,0 +1,35 @@
+parameters:
+  stealer.build: { type: token, required: true, min_length: 1, max_length: 64 }
+  stealer.key_base64: { type: base64, required: true, secret: true, decoded_min_length: 8, decoded_max_length: 64 }
+dsl_version: 1
+name: stealc-v2-http-rc4-registration
+metadata:
+  family: stealc
+  protocol: http_rc4_registration
+  plan_order: 400
+  description: Send a synthetic StealC create request and validate the decrypted access_token shape.
+transport: { type: tcp, connect_timeout_ms: 1000, read_timeout_ms: 3000 }
+steps:
+  - literal: { name: plain, text: '{"build":"${stealer.build}","hwid":"00000000-0000-4000-8000-000000000000","type":"create"}' }
+  - transform: { source: plain, name: encrypted, rc4: { key_base64: "${stealer.key_base64}" } }
+  - transform: { source: encrypted, name: request_body, base64_encode: {} }
+  - send_http:
+      method: POST
+      path: /
+      headers: { Host: "$target_ip", Content-Type: application/json, User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", Connection: close }
+      body_source: request_body
+  - recv_http: { max_header_bytes: 4096, max_body_bytes: 65536, body_as: response_body, header_as: header, status_as: http_status, content_length_as: response_size }
+  - transform: { source: response_body, name: response_encrypted, base64_decode: {} }
+  - transform: { source: response_encrypted, name: response_plain, rc4: { key_base64: "${stealer.key_base64}" } }
+  - match:
+      all:
+        - any: [{ eq: { left: "$http_status", right: 200 } }, { eq: { left: "$http_status", right: 201 } }]
+        - bytes_regex: { source: response_plain, pattern: '"access_token"[ \\t\\r\\n]*:[ \\t\\r\\n]*"[0-9A-Fa-f]{64,128}"' }
+result:
+  family: stealc
+  protocol: http_rc4_registration
+  confidence: 0.90
+  unmatched_confidence: 0.45
+  status: stealc_registration_token_match
+  unmatched_status: stealc_registration_mismatch
+  fields: { http_status: "$http_status", response_size: "$response_size", synthetic_identity_sent: true, access_token_published: false, response_body_published: false, payload_download_attempted: false }

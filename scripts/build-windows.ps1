@@ -62,7 +62,14 @@ try {
     Copy-Item -LiteralPath 'target\release\c2probe.exe' -Destination $stage
     Copy-Item -LiteralPath 'target\release\nse2yaml.exe' -Destination $stage
     Copy-Item -LiteralPath 'probes' -Destination $stage -Recurse
-    Copy-Item -LiteralPath 'docs' -Destination $stage -Recurse
+    $stageDocs = Join-Path $stage 'docs'
+    New-Item -ItemType Directory -Path $stageDocs | Out-Null
+    Copy-Item -LiteralPath @(
+        'docs\NSE_CONVERSION.md',
+        'docs\NSE_COVERAGE.md',
+        'docs\PERFORMANCE.md',
+        'docs\REVIEW.md'
+    ) -Destination $stageDocs
     Copy-Item -LiteralPath 'README.md', 'spec.md' -Destination $stage
     Compress-Archive -LiteralPath $stage -DestinationPath $archive -CompressionLevel Optimal
 

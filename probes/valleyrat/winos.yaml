@@ -47,6 +47,10 @@ steps:
       name: response_command
       expr:
         xor: { left: "$encrypted_command", right: "$mask" }
+  - reject_if:
+      buffer_starts_with: { source: response, prefix: request }
+      confidence: 0.0
+      status: winos_request_reflected
   - match:
       all:
         - eq: { left: "$declared_length", right: 15 }
@@ -65,5 +69,6 @@ result:
   fields:
     declared_length: "$declared_length"
     response_command: "$response_command"
+    request_reflected: "$rejected"
     victim_metadata_sent: false
     stage_requested: false

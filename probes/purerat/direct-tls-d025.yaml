@@ -1,0 +1,20 @@
+dsl_version: 1
+name: purerat-d025-direct-tls-certificate
+metadata:
+  family: purehvnc
+  protocol: direct_tls_certificate_only
+  plan_order: 202
+  description: Reviewed D025 direct-TLS endpoint and leaf certificate fingerprint.
+scope: { ips: ["45.192.211.77"], ports: [56001] }
+transport: { type: tls, connect_timeout_ms: 1000, read_timeout_ms: 1000, insecure_tls: true }
+steps:
+  - peer_certificate: { save_as: certificate_sha256 }
+  - match: { bytes_eq: { source: certificate_sha256, offset: 0, hex: "b3ae061b0b14a89d5134c279775b8f77a42214323c6bddab07f4d81ca2fc5c57" } }
+result:
+  family: purehvnc
+  protocol: direct_tls_certificate_only
+  confidence: 0.92
+  unmatched_confidence: 0.40
+  status: purerat_direct_tls_certificate_match
+  unmatched_status: purerat_direct_tls_certificate_mismatch_inconclusive
+  fields: { variant: managed_purerat_4_4_1_direct_tls, profile_id: purerat-441-d025a296-45-192-211-77-56001-direct-tls10, root_sample_sha256: d025a29613e300d7755f878eb1d23d8a8a042cb2d3eb9005d66664ab9b97c677, terminal_sample_sha256: df0359edefe34a970af39227978dbe7f1caa09caf98a2c6db53f49187ec25dd7, certificate_sha256: "$hex:certificate_sha256", expected_certificate_sha256: "b3ae061b0b14a89d5134c279775b8f77a42214323c6bddab07f4d81ca2fc5c57", certificate_mismatch_excludes_c2: false }

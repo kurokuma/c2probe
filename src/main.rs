@@ -60,11 +60,13 @@ async fn run(args: Args) -> Result<()> {
     let probe_paths = args.probes.clone();
     let probe_dir = args.probe_dir.clone();
     let probes = if args.runs_probes() {
-        dsl::load_probes(
+        let probe_parameters = args.probe_parameter_map()?;
+        dsl::load_probes_with_params(
             &probe_paths,
             probe_dir.as_deref(),
             args.connect_timeout(),
             args.read_timeout(),
+            &probe_parameters,
         )
         .await?
     } else {

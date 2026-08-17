@@ -1,0 +1,26 @@
+dsl_version: 1
+name: redline-3f3ac0a3-checkconnect-v1
+metadata:
+  family: redlinestealer
+  protocol: wcf_soap11_checkconnect
+  plan_order: 300
+  description: Byte-exact reviewed CheckConnect SOAP request for the pinned RedLine endpoint.
+scope: { ips: ["192.144.32.84"], ports: [16383] }
+transport: { type: tcp, connect_timeout_ms: 1000, read_timeout_ms: 3000 }
+steps:
+  - send:
+      hex: "504f5354202f20485454502f312e310d0a486f73743a203139322e3134342e33322e38343a31363338330d0a436f6e74656e742d547970653a20746578742f786d6c3b20636861727365743d7574662d380d0a534f4150416374696f6e3a2022687474703a2f2f74656d707572692e6f72672f456e64706f696e742f436865636b436f6e6e656374220d0a436f6e74656e742d4c656e6774683a203137360d0a436f6e6e656374696f6e3a20636c6f73650d0a0d0a3c3f786d6c2076657273696f6e3d22312e302220656e636f64696e673d227574662d38223f3e3c733a456e76656c6f706520786d6c6e733a733d22687474703a2f2f736368656d61732e786d6c736f61702e6f72672f736f61702f656e76656c6f70652f223e3c733a426f64793e3c436865636b436f6e6e65637420786d6c6e733d22687474703a2f2f74656d707572692e6f72672f22202f3e3c2f733a426f64793e3c2f733a456e76656c6f70653e"
+  - recv_http: { max_header_bytes: 2048, max_body_bytes: 2048, body_as: body, header_as: header, status_as: http_status, content_length_as: response_size }
+  - match:
+      all:
+        - gt: { left: "$http_status", right: 199 }
+        - lt: { left: "$http_status", right: 300 }
+        - bytes_regex: { source: header, pattern: "(?i)\\r\\ncontent-type:[ \\t]*text/xml;[ \\t]*charset=(?:utf-8|\"utf-8\")[ \\t]*\\r\\n" }
+        - bytes_regex: { source: body, pattern: "(?is)^\\s*(?:<\\?xml[ \\t]+version=[\"']1\\.0[\"'][ \\t]+encoding=[\"']utf-8[\"'][ \\t]*\\?>\\s*)?<s:Envelope[ \\t]+xmlns:s=[\"']http://schemas\\.xmlsoap\\.org/soap/envelope/[\"'][ \\t]*>\\s*<s:Body[ \\t]*>\\s*<CheckConnectResponse[ \\t]+xmlns=[\"']http://tempuri\\.org/[\"'][ \\t]*>\\s*<CheckConnectResult[ \\t]*>\\s*(?:true|false|1|0)\\s*</CheckConnectResult>\\s*</CheckConnectResponse>\\s*</s:Body>\\s*</s:Envelope>\\s*$" }
+result:
+  family: redlinestealer
+  protocol: wcf_soap11_checkconnect
+  confidence: 0.95
+  status: redline_checkconnect_boolean_match
+  unmatched_status: redline_checkconnect_soap_mismatch
+  fields: { profile_id: redline-3f3ac0a3-checkconnect-v1, http_status: "$http_status", response_size: "$response_size", raw_response_published: false, victim_metadata_sent: false, payload_download_attempted: false }

@@ -1,0 +1,24 @@
+dsl_version: 1
+name: transport-tls-certificate-observation
+metadata:
+  family: unclassified
+  protocol: tls_transport_only
+  plan_order: 910
+  description: TLS handshake and leaf certificate observation; never confirms C2.
+transport: { type: tls, connect_timeout_ms: 1000, read_timeout_ms: 1000, insecure_tls: true }
+steps:
+  - peer_certificate: { save_as: certificate_sha256 }
+  - extract: { source: certificate_sha256, name: certificate_length, type: bufferlen, offset: 0 }
+  - match: { eq: { left: "$certificate_length", right: 32 } }
+result:
+  family: unclassified
+  protocol: tls_transport_only
+  classification: observation
+  confirmed: "$match"
+  confidence: 0.35
+  unmatched_confidence: 0.0
+  status: tls_handshake_observed
+  unmatched_status: tls_certificate_missing
+  fields:
+    certificate_sha256: "$hex:certificate_sha256"
+    application_data_sent: false

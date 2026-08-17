@@ -1,0 +1,35 @@
+parameters:
+  stealer.tag: { type: hex, required: true, min_length: 32, max_length: 32 }
+  stealer.exp: { type: decimal, required: true }
+dsl_version: 1
+name: remus-http-encrypted-registration
+metadata:
+  family: remusstealer
+  protocol: http_encrypted_registration
+  plan_order: 402
+  description: Send supplied synthetic registration fields and classify the encrypted envelope shape as probable.
+transport: { type: tcp, connect_timeout_ms: 1000, read_timeout_ms: 3000 }
+steps:
+  - literal: { name: request_body, text: "tag=${stealer.tag}&exp=${stealer.exp}&hwid=00000000000040008000000000000000" }
+  - send_http:
+      method: POST
+      path: /
+      headers: { Host: microsoft.com, Content-Type: application/x-www-form-urlencoded, User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/117.0.0.0", Cache-Control: no-cache, Pragma: no-cache, Connection: close }
+      body_source: request_body
+  - recv_http: { max_header_bytes: 4096, max_body_bytes: 8192, body_as: response_body, header_as: header, status_as: http_status, content_length_as: response_size }
+  - extract: { source: response_body, name: actual_size, type: bufferlen, offset: 0 }
+  - match:
+      all:
+        - eq: { left: "$http_status", right: 201 }
+        - gt: { left: "$actual_size", right: 40 }
+        - lt: { left: "$actual_size", right: 8193 }
+        - bytes_regex: { source: header, pattern: "(?i)\\r\\ncontent-type:[ \\t]*application/octet-stream" }
+result:
+  family: remusstealer
+  protocol: http_encrypted_registration
+  classification: probable
+  confidence: 0.78
+  unmatched_confidence: 0.35
+  status: remus_registration_envelope_match
+  unmatched_status: remus_registration_mismatch
+  fields: { http_status: "$http_status", response_size: "$actual_size", synthetic_identity_sent: true, access_token_published: false, response_body_published: false, payload_download_attempted: false }

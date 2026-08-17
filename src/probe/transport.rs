@@ -6,6 +6,8 @@ use rustls::{
     pki_types::{CertificateDer, ServerName, UnixTime},
 };
 #[cfg(feature = "tls")]
+use sha2::{Digest, Sha256};
+#[cfg(feature = "tls")]
 use std::{fmt::Debug, sync::Arc};
 use std::{
     io,
@@ -69,6 +71,14 @@ pub type ProbeResult<T> = Result<T, ProbeFailure>;
 pub trait ProbeIo: Send {
     async fn send_all(&mut self, data: &[u8]) -> ProbeResult<()>;
     async fn recv_exact(&mut self, len: usize, d: Duration) -> ProbeResult<Vec<u8>>;
+    async fn recv_up_to(&mut self, min: usize, max: usize, d: Duration) -> ProbeResult<Vec<u8>>;
+    async fn recv_until(
+        &mut self,
+        delimiter: &[u8],
+        max: usize,
+        d: Duration,
+    ) -> ProbeResult<Vec<u8>>;
+    fn peer_certificate_sha256(&self) -> ProbeResult<[u8; 32]>;
 }
 
 async fn read_exact<S>(stream: &mut S, len: usize, d: Duration) -> ProbeResult<Vec<u8>>
@@ -83,6 +93,67 @@ where
     }
 }
 
+async fn read_up_to<S>(stream: &mut S, min: usize, max: usize, d: Duration) -> ProbeResult<Vec<u8>>
+where
+    S: AsyncReadExt + Unpin + Send,
+{
+    let deadline = tokio::time::Instant::now() + d;
+    let mut output = Vec::with_capacity(max.min(8192));
+    let mut chunk = [0u8; 4096];
+    while output.len() < max {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        let wanted = chunk.len().min(max - output.len());
+        match timeout(remaining, stream.read(&mut chunk[..wanted])).await {
+            Err(_) => break,
+            Ok(Ok(0)) => break,
+            Ok(Ok(read)) => output.extend_from_slice(&chunk[..read]),
+            Ok(Err(error)) => return Err(from_io(&error)),
+        }
+    }
+    if output.len() < min {
+        if output.is_empty() {
+            Err(ProbeFailure::ReadTimeout)
+        } else {
+            Err(ProbeFailure::InvalidResponse)
+        }
+    } else {
+        Ok(output)
+    }
+}
+
+async fn read_until<S>(
+    stream: &mut S,
+    delimiter: &[u8],
+    max: usize,
+    d: Duration,
+) -> ProbeResult<Vec<u8>>
+where
+    S: AsyncReadExt + Unpin + Send,
+{
+    let future = async {
+        let mut output = Vec::with_capacity(max.min(8192));
+        let mut byte = [0u8; 1];
+        while output.len() < max {
+            match stream.read_exact(&mut byte).await {
+                Ok(_) => {
+                    output.push(byte[0]);
+                    if output.ends_with(delimiter) {
+                        return Ok(output);
+                    }
+                }
+                Err(error) => return Err(from_io(&error)),
+            }
+        }
+        Err(ProbeFailure::InvalidResponse)
+    };
+    timeout(d, future)
+        .await
+        .map_err(|_| ProbeFailure::ReadTimeout)?
+}
+
 pub struct TcpIo(TcpStream);
 #[async_trait]
 impl ProbeIo for TcpIo {
@@ -91,6 +162,20 @@ impl ProbeIo for TcpIo {
     }
     async fn recv_exact(&mut self, len: usize, d: Duration) -> ProbeResult<Vec<u8>> {
         read_exact(&mut self.0, len, d).await
+    }
+    async fn recv_up_to(&mut self, min: usize, max: usize, d: Duration) -> ProbeResult<Vec<u8>> {
+        read_up_to(&mut self.0, min, max, d).await
+    }
+    async fn recv_until(
+        &mut self,
+        delimiter: &[u8],
+        max: usize,
+        d: Duration,
+    ) -> ProbeResult<Vec<u8>> {
+        read_until(&mut self.0, delimiter, max, d).await
+    }
+    fn peer_certificate_sha256(&self) -> ProbeResult<[u8; 32]> {
+        Err(ProbeFailure::TlsError)
     }
 }
 #[cfg(feature = "tls")]
@@ -103,6 +188,27 @@ impl ProbeIo for TlsIo {
     }
     async fn recv_exact(&mut self, len: usize, d: Duration) -> ProbeResult<Vec<u8>> {
         read_exact(&mut self.0, len, d).await
+    }
+    async fn recv_up_to(&mut self, min: usize, max: usize, d: Duration) -> ProbeResult<Vec<u8>> {
+        read_up_to(&mut self.0, min, max, d).await
+    }
+    async fn recv_until(
+        &mut self,
+        delimiter: &[u8],
+        max: usize,
+        d: Duration,
+    ) -> ProbeResult<Vec<u8>> {
+        read_until(&mut self.0, delimiter, max, d).await
+    }
+    fn peer_certificate_sha256(&self) -> ProbeResult<[u8; 32]> {
+        let certificate = self
+            .0
+            .get_ref()
+            .1
+            .peer_certificates()
+            .and_then(|certificates| certificates.first())
+            .ok_or(ProbeFailure::TlsError)?;
+        Ok(Sha256::digest(certificate.as_ref()).into())
     }
 }
 
@@ -121,6 +227,14 @@ pub async fn connect(ip: IpAddr, port: u16, p: &CompiledProbe) -> ProbeResult<Bo
     match p.transport {
         TransportType::Tcp => Ok(Box::new(TcpIo(tcp))),
         TransportType::Tls => connect_tls(ip, tcp, p).await,
+        TransportType::Starttls => {
+            let prelude = p.prelude.as_deref().ok_or(ProbeFailure::InternalError)?;
+            let mut tcp = tcp;
+            tcp.write_all(prelude)
+                .await
+                .map_err(|error| from_io(&error))?;
+            connect_tls(ip, tcp, p).await
+        }
     }
 }
 

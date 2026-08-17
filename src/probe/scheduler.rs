@@ -175,6 +175,9 @@ async fn run_plan(
     m: &Arc<Metrics>,
 ) -> Result<()> {
     for p in probes {
+        if !p.allows(open.ip, open.port) {
+            continue;
+        }
         if !seen.claim((open.ip, open.port, p.name.clone())).await {
             continue;
         }
@@ -214,6 +217,7 @@ async fn run_plan(
             OutputMode::All => true,
             OutputMode::Open => false,
             OutputMode::Responsive => e.responsive,
+            OutputMode::Detected => e.confirmed || e.probable,
             OutputMode::Matched => e.confirmed,
         };
         if should {
@@ -225,6 +229,7 @@ async fn run_plan(
                     transport: match p.transport {
                         crate::dsl::TransportType::Tcp => "tcp",
                         crate::dsl::TransportType::Tls => "tls",
+                        crate::dsl::TransportType::Starttls => "starttls",
                     }
                     .into(),
                 },
@@ -237,6 +242,8 @@ async fn run_plan(
                     family: p.family.to_string(),
                     protocol: p.protocol.to_string(),
                     confirmed: e.confirmed,
+                    probable: e.probable,
+                    observed: e.observed,
                     confidence: e.confidence,
                     status: e.status,
                     duration_ms: e.duration_ms,

@@ -1,0 +1,20 @@
+dsl_version: 1
+name: purerat-prelude-tls-observation
+metadata:
+  family: purehvnc
+  protocol: purerat_prelude_tls12
+  plan_order: 200
+  description: Send the reviewed four-byte prelude, upgrade the same stream to TLS, and record the leaf certificate.
+transport: { type: starttls, prelude_hex: "04 00 00 00", connect_timeout_ms: 1000, read_timeout_ms: 1000, insecure_tls: true }
+steps:
+  - peer_certificate: { save_as: certificate_sha256 }
+  - extract: { source: certificate_sha256, name: certificate_size, type: bufferlen, offset: 0 }
+  - match: { eq: { left: "$certificate_size", right: 32 } }
+result:
+  family: purehvnc
+  protocol: purerat_prelude_tls12
+  classification: observation
+  confidence: 0.62
+  status: purerat_prelude_tls_observed
+  unmatched_status: purerat_prelude_tls_not_observed
+  fields: { variant: managed_purerat, prelude_hex: "04000000", certificate_sha256: "$hex:certificate_sha256", certificate_mismatch_excludes_c2: false, victim_metadata_sent: false }

@@ -95,6 +95,7 @@ pub fn convert_valleyrat(source: &str) -> Result<ConversionBundle> {
                 format!("response length {}", w.receive_bytes),
                 format!("commands {:?}", w.response_commands),
                 "XOR mask derives from header byte plus 0x36".into(),
+                "reflected request prefix is rejected before protocol matching".into(),
             ],
         },
         RuleReport {
@@ -131,7 +132,6 @@ pub fn convert_valleyrat(source: &str) -> Result<ConversionBundle> {
             generated_rules,
             unsupported_semantics: vec![
                 "NSE-specific connect/send/receive error status text is handled by the c2probe transport executor".into(),
-                "Winos reflected-request suppression is not expressible in DSL v1".into(),
                 "Winos NSE accepts declared lengths 15..64; the generated minimal rule requires the 15-byte control frame".into(),
                 "Informational byte counts and attempted-operation fields are reduced to the defensive fields emitted by DSL v1".into(),
             ],
@@ -654,6 +654,10 @@ steps:
   - extract: {{ source: response, name: encrypted_command, type: u8, offset: 14 }}
   - compute: {{ name: mask, expr: {{ add: {{ left: "$response_header_first", right: {mask_add} }} }} }}
   - compute: {{ name: response_command, expr: {{ xor: {{ left: "$encrypted_command", right: "$mask" }} }} }}
+  - reject_if:
+      buffer_starts_with: {{ source: response, prefix: request }}
+      confidence: 0.0
+      status: winos_request_reflected
   - match:
       all:
         - eq: {{ left: "$declared_length", right: {frame_length} }}
@@ -672,6 +676,7 @@ result:
   fields:
     declared_length: "$declared_length"
     response_command: "$response_command"
+    request_reflected: "$rejected"
     victim_metadata_sent: false
     stage_requested: false
 "#,

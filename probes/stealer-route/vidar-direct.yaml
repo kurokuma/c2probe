@@ -1,0 +1,25 @@
+parameters:
+  vidar.expected_ip: { type: ip, required: true }
+dsl_version: 1
+name: vidar-3bb64d86-direct-route-v1
+metadata: { family: vidar, protocol: reviewed_http_route_observation, plan_order: 501, description: Reviewed Vidar HTTPS route plus a negative-control route. }
+scope: { ips: ["${vidar.expected_ip}"], ports: [443] }
+transport: { type: tls, server_name: "195.201.45.175", connect_timeout_ms: 1000, read_timeout_ms: 3000, insecure_tls: true }
+steps:
+  - send_http: { method: HEAD, path: /, headers: { Host: "195.201.45.175", User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win32) AppleWebKit/537.36 (KHTML, like Gecko) Edg/147.0.0.0", Accept: "*/*", Connection: close } }
+  - recv_http: { max_header_bytes: 4096, max_body_bytes: 0, headers_only: true, body_as: route_body, header_as: route_header, status_as: route_status, content_length_as: route_length }
+  - reconnect: {}
+  - send_http: { method: HEAD, path: /.well-known/asa-reviewed-route-negative-control-7f6d9e2b, headers: { Host: "195.201.45.175", User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win32) AppleWebKit/537.36 (KHTML, like Gecko) Edg/147.0.0.0", Accept: "*/*", Connection: close } }
+  - recv_http: { max_header_bytes: 4096, max_body_bytes: 0, headers_only: true, body_as: control_body, header_as: control_header, status_as: control_status, content_length_as: control_length }
+  - match:
+      all:
+        - any: [{ eq: { left: "$route_status", right: 200 } }, { eq: { left: "$route_status", right: 204 } }, { eq: { left: "$route_status", right: 401 } }, { eq: { left: "$route_status", right: 403 } }, { eq: { left: "$route_status", right: 405 } }]
+        - any: [{ eq: { left: "$control_status", right: 400 } }, { eq: { left: "$control_status", right: 404 } }, { eq: { left: "$control_status", right: 410 } }]
+result:
+  family: vidar
+  protocol: reviewed_http_route_observation
+  classification: probable
+  confidence: 0.60
+  status: vidar_reviewed_route_pair_match
+  unmatched_status: vidar_reviewed_route_pair_mismatch
+  fields: { route_status: "$route_status", control_status: "$control_status", request_body_sent: false, victim_metadata_sent: false }

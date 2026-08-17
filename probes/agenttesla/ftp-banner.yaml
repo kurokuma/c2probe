@@ -1,0 +1,24 @@
+dsl_version: 1
+name: agenttesla-ftp-banner-observation
+metadata:
+  family: agenttesla
+  protocol: ftp
+  plan_order: 400
+  description: FTP 220 banner observation; does not attempt authentication or claim AgentTesla confirmation.
+transport: { type: tcp, connect_timeout_ms: 1000, read_timeout_ms: 1000 }
+steps:
+  - recv_exact: { bytes: 3, save_as: banner_code }
+  - match: { bytes_eq: { source: banner_code, offset: 0, hex: "32 32 30" } }
+result:
+  family: agenttesla
+  protocol: ftp_banner_only
+  classification: observation
+  confirmed: "$match"
+  confidence: 0.35
+  unmatched_confidence: 0.20
+  status: ftp_banner_only
+  unmatched_status: ftp_banner_missing_or_invalid
+  fields:
+    authentication_attempted: false
+    application_data_sent: false
+    note: FTP banner alone does not identify AgentTesla C2

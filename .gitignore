@@ -2,7 +2,11 @@
 /target/
 /dist/
 /generated-probes/
-/docs/
+/docs/*
+!/docs/NSE_CONVERSION.md
+!/docs/NSE_COVERAGE.md
+!/docs/PERFORMANCE.md
+!/docs/REVIEW.md
 **/*.rs.bk
 *.profraw
 /coverage/
@@ -19,7 +23,6 @@
 *.db
 *.txt
 *.json
-spec.md
 
 # Local target and exclusion lists
 /targets*.txt

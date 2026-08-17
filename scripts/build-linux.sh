@@ -33,7 +33,8 @@ mkdir -p "${stage}"
 install -m 0755 target/release/c2probe "${stage}/c2probe"
 install -m 0755 target/release/nse2yaml "${stage}/nse2yaml"
 cp -R probes "${stage}/probes"
-cp -R docs "${stage}/docs"
+mkdir -p "${stage}/docs"
+cp docs/NSE_CONVERSION.md docs/NSE_COVERAGE.md docs/PERFORMANCE.md docs/REVIEW.md "${stage}/docs/"
 cp README.md spec.md "${stage}/"
 "${stage}/nse2yaml" --help >/dev/null
 tar --sort=name --mtime='UTC 2020-01-01' --owner=0 --group=0 --numeric-owner \

@@ -1,0 +1,27 @@
+dsl_version: 1
+name: darkcomet-rc4-server-first-ascii-hex
+parameters:
+  darkcomet.key_base64: { type: base64, required: true, secret: true }
+metadata:
+  family: darkcomet
+  protocol: rc4_server_first
+  plan_order: 101
+  description: ASCII-hex 12-byte DarkComet challenge; requires a reviewed RC4 key.
+transport: { type: tcp, connect_timeout_ms: 1000, read_timeout_ms: 1000 }
+steps:
+  - recv_exact: { bytes: 12, save_as: wire }
+  - transform: { source: wire, name: ciphertext, ascii_hex_decode: {} }
+  - transform:
+      source: ciphertext
+      name: plaintext
+      rc4: { key_base64: "${darkcomet.key_base64}" }
+  - match: { bytes_eq: { source: plaintext, offset: 0, hex: "49 44 54 59 50 45" } }
+result:
+  family: darkcomet
+  protocol: rc4_server_first_ascii_hex
+  confirmed: "$match"
+  confidence: 0.98
+  unmatched_confidence: 0.0
+  status: darkcomet_server_first_idtype_match
+  unmatched_status: darkcomet_idtype_mismatch
+  fields: { application_data_sent: false, decrypted_plaintext_published: false, rc4_key_published: false }

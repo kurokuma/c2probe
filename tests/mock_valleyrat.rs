@@ -102,6 +102,25 @@ async fn winos_matches_encrypted_command() {
 }
 
 #[tokio::test]
+async fn winos_rejects_a_reflected_request() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut request = [0u8; 15];
+        socket.read_exact(&mut request).await.unwrap();
+        socket.write_all(&request).await.unwrap();
+    });
+    let compiled = probe("winos.yaml").await;
+    let result = execute(addr.ip(), addr.port(), compiled.as_ref()).await;
+    server.await.unwrap();
+    assert!(!result.confirmed);
+    assert_eq!(result.confidence, 0.0);
+    assert_eq!(result.status, "winos_request_reflected");
+    assert_eq!(result.fields["request_reflected"], true);
+}
+
+#[tokio::test]
 async fn n520_matches_server_first_magic_and_crc() {
     let generated = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
     let key = PrivateKeyDer::Pkcs8(generated.signing_key.serialize_der().into());

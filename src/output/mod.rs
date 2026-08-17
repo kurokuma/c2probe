@@ -37,9 +37,17 @@ pub struct ProbeResult {
     pub family: String,
     pub protocol: String,
     pub confirmed: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub probable: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub observed: bool,
     pub confidence: f64,
     pub status: String,
     pub duration_ms: u64,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 pub struct OutputWriter {
@@ -112,6 +120,8 @@ impl OutputWriter {
                     "family",
                     "protocol",
                     "confirmed",
+                    "probable",
+                    "observed",
                     "confidence",
                     "status",
                     "duration_ms",
@@ -129,6 +139,8 @@ impl OutputWriter {
                 p.map(|x| x.family.clone()).unwrap_or_default(),
                 p.map(|x| x.protocol.clone()).unwrap_or_default(),
                 p.map(|x| x.confirmed.to_string()).unwrap_or_default(),
+                p.map(|x| x.probable.to_string()).unwrap_or_default(),
+                p.map(|x| x.observed.to_string()).unwrap_or_default(),
                 p.map(|x| x.confidence.to_string()).unwrap_or_default(),
                 p.map(|x| x.status.clone()).unwrap_or_default(),
                 p.map(|x| x.duration_ms.to_string()).unwrap_or_default(),

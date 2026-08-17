@@ -26,7 +26,7 @@ Raw SYNには`CAP_NET_RAW`またはroot権限が必要です。常時rootで実�
 ├── Cargo.toml / Cargo.lock
 ├── .gitignore
 ├── Makefile
-├── probes/valleyrat/
+├── probes/                  # family別の24 application probe YAML
 ├── scripts/
 │   ├── build-linux.sh       # Linux上でLinux版を作成
 │   └── build-windows.ps1    # Windows上でWindows版を作成
@@ -182,6 +182,7 @@ IPv4専用です。IPv6へ接続する場合は`--scan-mode probe`を使用し�
 | `--scan-mode <MODE>` | `full` | 処理段階を選びます。`full`はRaw SYN後にopen portをprobe、`discovery`はRaw SYNだけ、`probe`はRaw SYNを行わず指定先へ直接接続します |
 | `--probe <FILE>` | なし | 読み込むprobe YAMLを1ファイルずつ指定します。複数回指定できます |
 | `--probe-dir <DIR>` | なし | ディレクトリ内のprobe YAMLをまとめて読み込みます。`--probe`と併用できます |
+| `--probe-param <NAME=VALUE>` | なし | 鍵、build ID、期待証明書、IP pinなど、review済みprofile値をYAMLへ渡します。複数回指定できます |
 | `--output-mode <MODE>` | `matched` | 出力する結果の条件を選びます。`open`だけはprobe自体を実行しません。詳細は「出力」を参照してください |
 | `--retries <COUNT>` | `0` | timeout、connection reset、probe errorなど一時的な失敗に対する追加試行回数です。初回を含む最大試行回数は`COUNT + 1`です |
 
@@ -362,6 +363,7 @@ Raw socket権限を必要としません。
 | `all` | open portと全probe結果 |
 | `open` | open portのみ。probeは実行しません |
 | `responsive` | application応答があったprobe |
+| `detected` | confirmedまたはprobable。経路・登録形状の中確度判定も含めます |
 | `matched` | confirmedのみ。既定値 |
 
 `--output-mode open`はprobe結果を出力しないため、`--scan-mode full`であってもprobe接続を
@@ -390,7 +392,9 @@ JSONLが行途中で壊れることはありません。マルチプロセスで
 
 DSLはネットワークfingerprint専用です。ループ、再帰、任意関数、OS command、
 filesystem access、process execution、dynamic module loadingは提供しません。probe YAMLは
-1 MiB以下に制限され、`recv_exact`も1 MiB以下として起動時に検証されます。
+1 MiB以下に制限され、各受信bufferも1 MiB以下として起動時に検証されます。TCP、TLS、
+plaintext prelude後の同一stream TLS upgrade、bounded frame/HTTP受信、RC4、Base64、gzip、
+限定MessagePack string抽出をIRへcompileします。
 
 起動時のcompileでは、実行前に次も検証します。probe定義の誤りが「相手の応答異常」として
 記録されることを防ぐためです。
@@ -400,13 +404,21 @@ filesystem access、process execution、dynamic module loadingは提供しませ
 - `match` stepがprobeにちょうど1つであること（複数あるとconfidenceの出所が曖昧になるため）
 - `pack`の値が指定した型に収まること。切り詰めを許す場合は`wrap: true`を明示すること
 - probe 1本が保持するbuffer合計が4 MiB以下であること
+- scopeのIP/CIDRとport、HTTP method/path/header、regex、parameter型が有効であること
+- `reject_if`のbuffer間prefix比較をcompileし、反射応答など明示した除外条件をmatchより優先すること
 
 `transport.type: tls`は`insecure_tls: true`を必須とします。このビルドは証明書検証を行わない
 ため、検証しないことをprobe側で明示させています。
 
-同梱probeは[参照ValleyRAT NSE](https://github.com/proshiba/AI-security-analysis/blob/main/analysis-framework/nmap/scripts/valleyrat-c2.nse)
-の最小通信をDSL化したものです。`n520 → winos → vvas`の順で実行し、confirmed時は
-後続probeを停止します。
+同梱probeは[upstream scripts全12本](https://github.com/proshiba/AI-security-analysis/tree/main/analysis-framework/nmap/scripts)
+をレビューし、application通信を持つものを24 YAMLへ展開したものです。DNS解決だけ、および
+tcp-open観測だけのNSEは、偽のC2判定YAMLを作らずc2probe native機能へ対応付けています。
+全件の対応、SHA-256、表現差は[docs/NSE_COVERAGE.md](docs/NSE_COVERAGE.md)にあります。
+
+結果の確度は`confirmed`、`probable`、`observation`で分離されます。既定の`matched`は
+confirmedだけ、`detected`はconfirmedとprobableを出力します。parameter付きYAMLを
+directoryから読んだ際に値がなければ、そのruleだけ警告付きでskipします。明示した
+`--probe`のparameter不足は設定ミスとして起動エラーになります。
 
 Winos probeは固定済みpacketを埋め込まず、`compute`でcommandを算出し、`pack`で各整数を
 指定endiannessのbufferへ変換し、`concat`したbufferを`send.source`で送信します。
@@ -424,8 +436,10 @@ Winos probeは固定済みpacketを埋め込まず、`compute`でcommandを算�
 ## NSEからYAMLへの変換
 
 `nse2yaml`はNSEを実行せず、Lua sourceをtokenizeして対応profileの通信と判定定数を静的に
-検証してからYAMLを生成します。現時点のstrict profileは、レビュー済みValleyRAT NSEの
-`winos`、`vvas`、`n520`に対応します。任意のNSEを汎用変換するものではありません。
+検証してからYAMLを生成します。自動converterのstrict profileは、レビュー済みValleyRAT
+NSEの`winos`、`vvas`、`n520`です。残りは今回、人手レビュー、DSL拡張、scope/parameter
+設定、registry compile testを経て保守対象YAMLへ変換しました。任意のNSEを汎用変換する
+ものではありません。
 
 ```bash
 ./nse2yaml valleyrat-c2.nse \
@@ -456,12 +470,44 @@ generated-probes/
 | `n520` | `n520.yaml` | コア判定同等 | TLS server-first 44 byte、session magic計算、先頭40 byteのCRC32 |
 | `winos` | `winos.yaml` | 保守的部分同等 | 15 byte heartbeat、header由来XOR、command `0xc9/0xca/0xcb`を保持 |
 
-Winos NSEは宣言長15–64とrequest reflection除外も持ちますが、DSL v1の`recv_exact`と現在の
-match演算だけでは完全には表現できません。生成ruleは15 byteの最小control frameへ限定し、
-この差を`conversion-report.json`の`unsupported_semantics`へ必ず記録します。接続・送受信
+Winos NSEのrequest reflection除外は`reject_if`で表現し、反射時はconfidence 0の
+`winos_request_reflected`としてconfirmedにしません。宣言長15–64について生成ruleは15 byteの
+最小control frameへ限定し、この差を`conversion-report.json`の`unsupported_semantics`へ記録します。接続・送受信
 エラーstatusと診断用byte countもc2probe Executor側の表現へ正規化されます。
 
-検証fixture、比較方法、対応範囲は[docs/NSE_CONVERSION.md](docs/NSE_CONVERSION.md)を参照してください。
+strict converterのfixtureと比較方法は[docs/NSE_CONVERSION.md](docs/NSE_CONVERSION.md)、
+upstream 12本の全件対応は[docs/NSE_COVERAGE.md](docs/NSE_COVERAGE.md)を参照してください。
+
+### family別の実行例
+
+parameter不要な.NET RAT rule:
+
+```bash
+./c2probe -i targets.txt -p all --scan-mode full \
+  --probe-dir probes/dotnet-rat --output-mode matched \
+  --format jsonl --output dotnet-rat.jsonl
+```
+
+review済みRC4鍵を使うDarkComet rule（鍵はlog/resultへ出力しません）:
+
+```bash
+./c2probe -i targets.txt -p all --scan-mode full \
+  --probe-dir probes/darkcomet \
+  --probe-param darkcomet.key_base64='<BASE64_KEY>' \
+  --output-mode matched --output darkcomet.jsonl
+```
+
+probableを含むFormBook route rule。domainを別途解決・検証したIPをtargetとpinの両方へ指定します:
+
+```bash
+./c2probe -t 192.0.2.10 -p 80 --scan-mode full \
+  --probe probes/stealer-route/formbook-guloader.yaml \
+  --probe-param formbook.expected_ip=192.0.2.10 \
+  --output-mode detected --output formbook.jsonl
+```
+
+`--probe-dir probes`は全familyを全open portへ計画するため、通常は目的のfamily directoryを
+選んでください。scope不一致ruleはnetwork接続前にskipされます。
 
 ## 開発者向けコマンド
 
@@ -487,8 +533,9 @@ cargo build --locked --release
 
 - unit test 43件（PACK、endianness、SYN cookie、target件数、metrics、逐次出力、引数配分、CPU set、
   sharding、host limit解放、DSL/NSE静的検証を含む）
-- 統合test 14件（VVAS正常/異常、DSL生成Winos、TLS n520、2-process、per-probe制限、
-  IPv6拒否、`-iL`、probe定義エラー、protocol_mismatch、connection_refused、NSE 3-rule比較）
+- 統合test 21件（VVAS正常/異常、DSL生成Winos、Winos反射除外、TLS n520、DarkComet RC4、.NET RAT gzip
+  MessagePack、RedLine byte vector、observation確度、全24 YAML compile、upstream 12本の対応漏れ、
+  2-process、per-probe制限、IPv6拒否、`-iL`、probe定義エラー、NSE 3-rule比較）
 - `cargo fmt --all -- --check`と`cargo clippy --all-targets -- -D warnings`
 - Windows release build（probe-only開発用）
 - Linux Raw SYNコードの`x86_64-unknown-linux-gnu`クロス型検査とClippy
