@@ -1,0 +1,43 @@
+[package]
+name = "c2probe"
+version = "0.1.0"
+edition = "2024"
+description = "Defensive, DSL-driven C2 network fingerprint scanner"
+license = "Apache-2.0"
+
+[features]
+default = ["tls"]
+tls = ["dep:rustls", "dep:tokio-rustls"]
+
+[dependencies]
+anyhow = "1"
+async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+crc32fast = "1"
+csv = "1"
+futures = "0.3"
+hex = "0.4"
+ipnet = "2"
+pnet = "0.35"
+rustls = { version = "0.23", optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+thiserror = "2"
+tokio = { version = "1", features = ["fs", "io-std", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-rustls = { version = "0.26", optional = true }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+[dev-dependencies]
+rcgen = "0.14"
+tempfile = "3"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

@@ -1,0 +1,44 @@
+dsl_version: 1
+name: valleyrat-vvas
+metadata:
+  family: valleyrat
+  protocol: vvas
+  plan_order: 30
+  description: Minimal VVAS stage-header fingerprint; stage data is not requested.
+transport:
+  type: tcp
+  connect_timeout_ms: 1000
+  read_timeout_ms: 1000
+steps:
+  - send:
+      hex: "33 32 00"
+  - recv_exact:
+      bytes: 14
+      save_as: response
+  - extract:
+      source: response
+      name: stage_size
+      type: u32le
+      offset: 0
+  - match:
+      all:
+        - eq:
+            left: "$stage_size"
+            right: 307214
+        - bytes_eq:
+            source: response
+            offset: 4
+            hex: "00 00 00 00 00 00 00 00 00 00"
+result:
+  family: valleyrat
+  protocol: vvas
+  confirmed: "$match"
+  confidence: 0.95
+  unmatched_confidence: 0.35
+  status: vvas_stage_header_match
+  unmatched_status: vvas_header_mismatch
+  fields:
+    declared_stage_size: "$stage_size"
+    expected_stage_size: 307214
+    stage_downloaded: false
+    victim_metadata_sent: false

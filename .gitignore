@@ -1,0 +1,51 @@
+# Rust build output
+/target/
+/dist/
+/docs/
+**/*.rs.bk
+*.profraw
+/coverage/
+/tarpaulin-report.html
+
+# Scan output and captures
+*.jsonl
+*.csv
+*.log
+*.pcap
+*.pcapng
+*.sqlite
+*.sqlite3
+*.db
+*.txt
+*.json
+spec.md
+
+# Local target and exclusion lists
+/targets*.txt
+/exclusions*.txt
+/blocklist*.txt
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+
+# Editors and operating systems
+/.vscode/
+/.idea/
+/.vs/
+*.suo
+*.user
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~

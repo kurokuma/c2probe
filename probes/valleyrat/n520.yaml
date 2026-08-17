@@ -1,0 +1,54 @@
+dsl_version: 1
+name: valleyrat-n520
+metadata:
+  family: valleyrat
+  protocol: n520
+  plan_order: 10
+  description: TLS server-first handshake; sends no application data.
+transport:
+  type: tls
+  connect_timeout_ms: 1000
+  read_timeout_ms: 1000
+  insecure_tls: true
+steps:
+  - recv_exact:
+      bytes: 44
+      save_as: response
+  - extract: { source: response, name: session_id, type: u32le, offset: 0 }
+  - extract: { source: response, name: received_magic, type: u32le, offset: 4 }
+  - extract: { source: response, name: stored_crc, type: u32le, offset: 40 }
+  - extract: { source: response, name: calculated_crc, type: crc32, offset: 0, length: 40 }
+  - compute:
+      name: session_high
+      expr: { shift_right: { left: "$session_id", right: 16 } }
+  - compute:
+      name: session_low
+      expr: { and: { left: "$session_id", right: 65535 } }
+  - compute:
+      name: folded
+      expr: { xor: { left: "$session_high", right: "$session_low" } }
+  - compute:
+      name: mixed
+      expr: { or: { left: "$folded", right: 2779054080 } }
+  - compute:
+      name: expected_magic
+      expr: { xor: { left: "$session_id", right: "$mixed" } }
+  - match:
+      all:
+        - eq: { left: "$received_magic", right: "$expected_magic" }
+        - eq: { left: "$stored_crc", right: "$calculated_crc" }
+result:
+  family: valleyrat
+  protocol: n520
+  confirmed: "$match"
+  confidence: 0.98
+  unmatched_confidence: 0.35
+  status: n520_server_first_handshake_match
+  unmatched_status: n520_handshake_mismatch
+  fields:
+    session_id: "$session_id"
+    received_magic: "$received_magic"
+    expected_magic: "$expected_magic"
+    stored_crc: "$stored_crc"
+    calculated_crc: "$calculated_crc"
+    application_data_sent: false

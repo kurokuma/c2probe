@@ -1,0 +1,69 @@
+dsl_version: 1
+name: valleyrat-winos
+metadata:
+  family: valleyrat
+  protocol: winos
+  plan_order: 20
+  description: Minimal heartbeat frame; no victim metadata or task request.
+transport:
+  type: tcp
+  connect_timeout_ms: 1000
+  read_timeout_ms: 1000
+steps:
+  - compute: { name: request_mask, expr: { add: { left: 120, right: 54 } } }
+  - compute: { name: request_command, expr: { xor: { left: 201, right: "$request_mask" } } }
+  - pack: { name: request_length, type: u32le, value: 15 }
+  - pack: { name: request_magic, type: u32le, value: 305419896 }
+  - pack: { name: request_reserved, type: u32le, value: 0 }
+  - pack: { name: request_type, type: u16le, value: 202 }
+  - pack: { name: request_payload, type: u8, value: "$request_command" }
+  - concat:
+      name: request
+      sources: ["$request_length", "$request_magic", "$request_reserved", "$request_type", "$request_payload"]
+  - send: { source: "$request" }
+  - recv_exact:
+      bytes: 15
+      save_as: response
+  - extract:
+      source: response
+      name: declared_length
+      type: u32le
+      offset: 0
+  - extract:
+      source: response
+      name: response_header_first
+      type: u8
+      offset: 4
+  - extract:
+      source: response
+      name: encrypted_command
+      type: u8
+      offset: 14
+  - compute:
+      name: mask
+      expr:
+        add: { left: "$response_header_first", right: 54 }
+  - compute:
+      name: response_command
+      expr:
+        xor: { left: "$encrypted_command", right: "$mask" }
+  - match:
+      all:
+        - eq: { left: "$declared_length", right: 15 }
+        - any:
+            - eq: { left: "$response_command", right: 201 }
+            - eq: { left: "$response_command", right: 202 }
+            - eq: { left: "$response_command", right: 203 }
+result:
+  family: valleyrat
+  protocol: winos
+  confirmed: "$match"
+  confidence: 0.95
+  unmatched_confidence: 0.45
+  status: winos_control_response
+  unmatched_status: winos_unknown_response
+  fields:
+    declared_length: "$declared_length"
+    response_command: "$response_command"
+    victim_metadata_sent: false
+    stage_requested: false
