@@ -31,7 +31,11 @@ Raw SYNには`CAP_NET_RAW`またはroot権限が必要です。常時rootで実�
 │   ├── build-linux.sh       # Linux上でLinux版を作成
 │   └── build-windows.ps1    # Windows上でWindows版を作成
 ├── src/
-└── tests/mock_valleyrat.rs
+│   ├── main.rs             # c2probe
+│   └── bin/nse2yaml.rs     # strict NSE converter
+└── tests/
+    ├── mock_valleyrat.rs
+    └── nse_converter.rs
 ```
 
 ## Linux上でビルドする
@@ -72,6 +76,7 @@ aarch64 Linux上で実行した場合はファイル名が`linux-aarch64`にな�
 ```bash
 cargo build --locked --release
 ./target/release/c2probe --help
+./target/release/nse2yaml --help
 ```
 
 ## Windows上でWindows版をビルドする
@@ -103,7 +108,8 @@ dist/c2probe-0.1.0-windows-x86_64.sha256
 .\scripts\build-windows.ps1 -OutputDirectory F:\artifacts\c2probe
 ```
 
-スクリプトはrustfmt、Clippy、全テスト、release build、パッケージ内exeの`--help`を順番に検証します。
+スクリプトはrustfmt、Clippy、全テスト、release build、パッケージ内の`c2probe`と
+`nse2yaml`の`--help`を順番に検証します。
 
 チェックサム確認と展開:
 
@@ -114,6 +120,7 @@ $expected = ((Get-Content '.\dist\c2probe-0.1.0-windows-x86_64.sha256' -Raw) -sp
 if ($actual -ne $expected) { throw 'checksum mismatch' }
 Expand-Archive $archive -DestinationPath .\dist\unpacked
 .\dist\unpacked\c2probe-0.1.0-windows-x86_64\c2probe.exe --help
+.\dist\unpacked\c2probe-0.1.0-windows-x86_64\nse2yaml.exe --help
 ```
 
 ## 配布先Linuxでのセットアップ
@@ -414,6 +421,48 @@ Winos probeは固定済みpacketを埋め込まず、`compute`でcommandを算�
 各bufferとconcat結果は1 MiBを上限とし、未定義buffer/register、重複名、複数命令を
 含むstepはcompile時に拒否されます。
 
+## NSEからYAMLへの変換
+
+`nse2yaml`はNSEを実行せず、Lua sourceをtokenizeして対応profileの通信と判定定数を静的に
+検証してからYAMLを生成します。現時点のstrict profileは、レビュー済みValleyRAT NSEの
+`winos`、`vvas`、`n520`に対応します。任意のNSEを汎用変換するものではありません。
+
+```bash
+./nse2yaml valleyrat-c2.nse \
+  --output-dir generated-probes \
+  --report generated-probes/conversion-report.json
+```
+
+生成物:
+
+```text
+generated-probes/
+├── winos.yaml
+├── vvas.yaml
+├── n520.yaml
+└── conversion-report.json
+```
+
+既存ファイルは既定で上書きしません。内容を確認して置換する場合だけ`--force`を指定します。
+生成した3 YAMLは書き出す前に既存DSL compilerを通過します。未知の`require`、動的load、
+`os`/`io`/`package`/`debug`、未知のsocket method、期待と異なる定数・network operation数は
+変換エラーになります。未対応処理を黙って削除してYAMLを生成することはありません。
+
+参照NSEに対する検証結果:
+
+| NSE mode | 生成YAML | 判定 | 根拠 |
+|---|---|---|---|
+| `vvas` | `vvas.yaml` | コア判定同等 | `33 32 00`送信、14 byte受信、stage size `307214`、後続10 zero byte |
+| `n520` | `n520.yaml` | コア判定同等 | TLS server-first 44 byte、session magic計算、先頭40 byteのCRC32 |
+| `winos` | `winos.yaml` | 保守的部分同等 | 15 byte heartbeat、header由来XOR、command `0xc9/0xca/0xcb`を保持 |
+
+Winos NSEは宣言長15–64とrequest reflection除外も持ちますが、DSL v1の`recv_exact`と現在の
+match演算だけでは完全には表現できません。生成ruleは15 byteの最小control frameへ限定し、
+この差を`conversion-report.json`の`unsupported_semantics`へ必ず記録します。接続・送受信
+エラーstatusと診断用byte countもc2probe Executor側の表現へ正規化されます。
+
+検証fixture、比較方法、対応範囲は[docs/NSE_CONVERSION.md](docs/NSE_CONVERSION.md)を参照してください。
+
 ## 開発者向けコマンド
 
 ```bash
@@ -436,10 +485,10 @@ cargo build --locked --release
 
 現在のWindows開発環境では以下を確認しています。
 
-- unit test 41件（PACK、endianness、SYN cookie、target件数、metrics、逐次出力、引数配分、CPU set、
-  sharding、host limit解放、DSL静的検証を含む）
-- ローカル通信テスト12件（VVAS正常/異常、DSL生成Winos、TLS n520、2-process、per-probe制限、
-  IPv6拒否、`-iL`、probe定義エラー、protocol_mismatch、connection_refused）
+- unit test 43件（PACK、endianness、SYN cookie、target件数、metrics、逐次出力、引数配分、CPU set、
+  sharding、host limit解放、DSL/NSE静的検証を含む）
+- 統合test 14件（VVAS正常/異常、DSL生成Winos、TLS n520、2-process、per-probe制限、
+  IPv6拒否、`-iL`、probe定義エラー、protocol_mismatch、connection_refused、NSE 3-rule比較）
 - `cargo fmt --all -- --check`と`cargo clippy --all-targets -- -D warnings`
 - Windows release build（probe-only開発用）
 - Linux Raw SYNコードの`x86_64-unknown-linux-gnu`クロス型検査とClippy

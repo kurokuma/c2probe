@@ -6,6 +6,7 @@ pub mod error;
 pub mod logging;
 pub mod metrics;
 pub mod multiprocess;
+pub mod nse;
 pub mod output;
 pub mod probe;
 pub mod shutdown;

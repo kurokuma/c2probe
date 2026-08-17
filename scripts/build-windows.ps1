@@ -60,6 +60,7 @@ try {
     New-Item -ItemType Directory -Path $stage | Out-Null
 
     Copy-Item -LiteralPath 'target\release\c2probe.exe' -Destination $stage
+    Copy-Item -LiteralPath 'target\release\nse2yaml.exe' -Destination $stage
     Copy-Item -LiteralPath 'probes' -Destination $stage -Recurse
     Copy-Item -LiteralPath 'docs' -Destination $stage -Recurse
     Copy-Item -LiteralPath 'README.md', 'spec.md' -Destination $stage
@@ -72,6 +73,10 @@ try {
     & (Join-Path $stage 'c2probe.exe') --help | Out-Null
     if ($LASTEXITCODE -ne 0) {
         throw 'packaged c2probe.exe --help failed'
+    }
+    & (Join-Path $stage 'nse2yaml.exe') --help | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw 'packaged nse2yaml.exe --help failed'
     }
 
     Write-Host "Created: $archive"
