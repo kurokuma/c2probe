@@ -15,11 +15,9 @@ DSLをIRへ一度だけコンパイルして、TokioベースのExecutorでC2固
 | Windows | probe-only、DSL開発・テスト |
 | macOS | 初期要件外 |
 
-IPv6 targetは`--scan-mode probe`でのみ受け付けます。`full`/`discovery`にIPv6を渡した場合は
-黙って読み飛ばさず、起動時にエラーで停止します。
+IPv6 targetは`--scan-mode probe`でのみ受け付けます。`full`/`discovery`にIPv6を渡した場合は起動時にエラーで停止します。
 
-Raw SYNには`CAP_NET_RAW`またはroot権限が必要です。常時rootで実行せず、可能な限り
-ビルド済みバイナリへ`CAP_NET_RAW`だけを付与してください。
+Raw SYNには`CAP_NET_RAW`またはroot権限が必要です。常時rootで実行せず、可能な限りビルド済みバイナリへ`CAP_NET_RAW`だけを付与してください。
 
 ## リポジトリ構成
 
@@ -78,9 +76,7 @@ cargo build --locked --release
 
 ## Windows上でWindows版をビルドする
 
-Windows用スクリプトはWindowsネイティブの`c2probe.exe`を作成します。Linux版への
-クロスコンパイルは行いません。WindowsではRaw SYN discoveryを利用できないため、
-生成物は`probe`モード、DSL開発、Mock C2テスト用です。
+Windows用スクリプトはWindowsネイティブの`c2probe.exe`を作成します。Linux版へのクロスコンパイルは行いません。WindowsではRaw SYN discoveryを利用できないため、生成物は`probe`モード、DSL開発、Mock C2テスト用です。
 
 必要な環境:
 
@@ -107,8 +103,7 @@ dist/c2probe-0.1.0-windows-x86_64.sha256
 .\scripts\build-windows.ps1 -OutputDirectory F:\artifacts\c2probe
 ```
 
-スクリプトはrustfmt、Clippy、全テスト、release build、パッケージ内exeの`--help`を
-順番に検証します。
+スクリプトはrustfmt、Clippy、全テスト、release build、パッケージ内exeの`--help`を順番に検証します。
 
 チェックサム確認と展開:
 
@@ -134,10 +129,6 @@ getcap ./c2probe
 ./c2probe --help
 ```
 
-ファイルを別の場所へコピーするとcapabilityが失われる場合があるため、配置後の最終
-バイナリへ`setcap`を実行してください。コンテナ内で実行する場合はコンテナへ
-`--cap-add NET_RAW`を付与する必要があります。
-
 ## スキャン実行
 
 対象と必要なprobeを指定すると、引数検証後に直ちにスキャンを開始します。
@@ -162,8 +153,7 @@ getcap ./c2probe
 
 ## オプション一覧と使い分け
 
-単位は特記がなければscan全体の設定です。`--processes`を2以上にした場合、rate、thread数、
-concurrencyは各workerへ分配されるため、指定値がworkerごとに掛け算されることはありません。
+単位は特記がなければscan全体の設定です。`--processes`を2以上にした場合、rate、thread数、concurrencyは各workerへ分配されるため、指定値がworkerごとに掛け算されることはありません。
 
 ### 対象とport
 
@@ -205,9 +195,7 @@ IPv4専用です。IPv6へ接続する場合は`--scan-mode probe`を使用し�
 | `--per-probe-concurrency <COUNT>` | `256` | 同じprobe定義を同時実行できる数の上限です。特定protocolへの偏りを抑えます |
 | `--cpu-affinity <CPUSET>` | なし | Linux CPU ID（例:`0,2-5`）へworker/threadを割り当てます。並列数を増やすオプションではありません |
 
-3種類のconcurrencyは同時に適用され、最も先に到達した上限で待機します。例えばglobalが1024でも、
-同一IPに対しては`--per-host-concurrency 32`を超えて接続しません。`--threads`は実行thread数、
-concurrencyは待機中のnetwork I/Oを含む同時probe数なので、同じ値にする必要はありません。
+3種類のconcurrencyは同時に適用され、最も先に到達した上限で待機します。例えばglobalが1024でも、同一IPに対しては`--per-host-concurrency 32`を超えて接続しません。`--threads`は実行thread数、concurrencyは待機中のnetwork I/Oを含む同時probe数なので、同じ値にする必要はありません。
 
 ### timeoutと終了処理
 
