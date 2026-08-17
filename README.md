@@ -4,14 +4,6 @@
 Raw SYNでopen port候補を絞り込み、NSEやマルウェア解析から変換した制限付きYAML
 DSLをIRへ一度だけコンパイルして、TokioベースのExecutorでC2固有応答を検証します。
 
-現時点では、参照NSEの最小プローブに対応するValleyRAT/Winos系の`n520`、
-`winos`、`vvas`を同梱しています。fingerprintの一致はプロトコル応答の一致であり、
-特定の攻撃者・キャンペーンへの帰属を意味しません。
-
-詳細な設計、DSL命令、性能目標、将来拡張は[spec.md](spec.md)、Phase 0–5のレビュー結果は
-[docs/REVIEW.md](docs/REVIEW.md)、敵対的レビューの指摘と対応状況は[docs/FIXES.md](docs/FIXES.md)を
-参照してください。
-
 ## 対応環境
 
 | 項目 | 対応状況 |
@@ -36,11 +28,6 @@ Raw SYNには`CAP_NET_RAW`またはroot権限が必要です。常時rootで実�
 ├── Cargo.toml / Cargo.lock
 ├── .gitignore
 ├── Makefile
-├── spec.md
-├── docs/
-│   ├── PERFORMANCE.md
-│   ├── REVIEW.md
-│   └── FIXES.md
 ├── probes/valleyrat/
 ├── scripts/
 │   ├── build-linux.sh       # Linux上でLinux版を作成
@@ -470,5 +457,4 @@ cargo build --locked --release
 - Linux Raw SYNコードの`x86_64-unknown-linux-gnu`クロス型検査とClippy
 
 Raw SYNの`sendmmsg`実通信、CPU affinity、`CAP_NET_RAW`付与後の挙動、250k pps以上の性能目標、packet loss、
-Nmap NSEとのDifferential Testは、権限を持つLinux検証ホストで別途実施する必要があり、
-現時点では検証済みとは扱いません。
+Nmap NSEとのDifferential Testは、権限を持つLinux検証ホストで別途実施する必要があり、現時点では検証済みとは扱いません。
