@@ -53,3 +53,4 @@ Desktop.ini
 *.temp
 *.swp
 *~
+scan-ctg-block-list.sh
