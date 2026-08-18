@@ -22,7 +22,6 @@
 *.sqlite3
 *.db
 *.txt
-*.json
 
 # Local target and exclusion lists
 /targets*.txt
@@ -53,4 +52,3 @@ Desktop.ini
 *.temp
 *.swp
 *~
-scan-ctg-block-list.sh
