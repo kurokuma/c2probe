@@ -1,6 +1,6 @@
 # c2probe
 
-`c2probe`は、防御側のC2インフラ探索を目的としたLinux向け高速TCPスキャナーです。
+`c2probe`は、C2インフラ探索を目的としたLinux向け高速TCPスキャナーです。
 Raw SYNでopen port候補を絞り込み、NSEやマルウェア解析から変換した制限付きYAML
 DSLをIRへ一度だけコンパイルして、TokioベースのExecutorでC2固有応答を検証します。
 
@@ -106,34 +106,6 @@ dist/c2probe-0.1.0-windows-x86_64.sha256
 
 ```powershell
 .\scripts\build-windows.ps1 -OutputDirectory F:\artifacts\c2probe
-```
-
-スクリプトはrustfmt、Clippy、全テスト、release build、パッケージ内の`c2probe`と
-`nse2yaml`の`--help`を順番に検証します。
-
-チェックサム確認と展開:
-
-```powershell
-$archive = '.\dist\c2probe-0.1.0-windows-x86_64.zip'
-$actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-$expected = ((Get-Content '.\dist\c2probe-0.1.0-windows-x86_64.sha256' -Raw) -split '\s+')[0]
-if ($actual -ne $expected) { throw 'checksum mismatch' }
-Expand-Archive $archive -DestinationPath .\dist\unpacked
-.\dist\unpacked\c2probe-0.1.0-windows-x86_64\c2probe.exe --help
-.\dist\unpacked\c2probe-0.1.0-windows-x86_64\nse2yaml.exe --help
-```
-
-## 配布先Linuxでのセットアップ
-
-Linuxビルド成果物の例:
-
-```bash
-sha256sum -c c2probe-0.1.0-linux-x86_64.sha256
-tar -xzf c2probe-0.1.0-linux-x86_64.tar.gz
-cd c2probe-0.1.0-linux-x86_64
-sudo setcap cap_net_raw=eip ./c2probe
-getcap ./c2probe
-./c2probe --help
 ```
 
 ## スキャン実行
@@ -508,37 +480,3 @@ probableを含むFormBook route rule。domainを別途解決・検証したIPを
 
 `--probe-dir probes`は全familyを全open portへ計画するため、通常は目的のfamily directoryを
 選んでください。scope不一致ruleはnetwork接続前にskipされます。
-
-## 開発者向けコマンド
-
-```bash
-make check       # rustfmt + Clippy
-make test        # unit + local Mock C2
-make build       # check + test + release build
-make package     # Linux配布用tar.gz + SHA-256
-```
-
-Makeを使わない場合:
-
-```bash
-cargo fmt --all -- --check
-cargo clippy --locked --all-targets -- -D warnings
-cargo test --locked --all-targets
-cargo build --locked --release
-```
-
-## 検証済み範囲と未検証事項
-
-現在のWindows開発環境では以下を確認しています。
-
-- unit test 43件（PACK、endianness、SYN cookie、target件数、metrics、逐次出力、引数配分、CPU set、
-  sharding、host limit解放、DSL/NSE静的検証を含む）
-- 統合test 21件（VVAS正常/異常、DSL生成Winos、Winos反射除外、TLS n520、DarkComet RC4、.NET RAT gzip
-  MessagePack、RedLine byte vector、observation確度、全24 YAML compile、upstream 12本の対応漏れ、
-  2-process、per-probe制限、IPv6拒否、`-iL`、probe定義エラー、NSE 3-rule比較）
-- `cargo fmt --all -- --check`と`cargo clippy --all-targets -- -D warnings`
-- Windows release build（probe-only開発用）
-- Linux Raw SYNコードの`x86_64-unknown-linux-gnu`クロス型検査とClippy
-
-Raw SYNの`sendmmsg`実通信、CPU affinity、`CAP_NET_RAW`付与後の挙動、250k pps以上の性能目標、packet loss、
-Nmap NSEとのDifferential Testは、権限を持つLinux検証ホストで別途実施する必要があり、現時点では検証済みとは扱いません。
