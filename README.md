@@ -26,10 +26,12 @@ Raw SYNには`CAP_NET_RAW`またはroot権限が必要です。常時rootで実�
 ├── Cargo.toml / Cargo.lock
 ├── .gitignore
 ├── Makefile
+├── ctg-server-block-list.json # block list入力例
 ├── probes/                  # family別の24 application probe YAML
 ├── scripts/
 │   ├── build-linux.sh       # Linux上でLinux版を作成
-│   └── build-windows.ps1    # Windows上でWindows版を作成
+│   ├── build-windows.ps1    # Windows上でWindows版を作成
+│   └── scan-block-list.sh   # JSON block listをnameごとにscan
 ├── src/
 │   ├── main.rs             # c2probe
 │   └── bin/nse2yaml.rs     # strict NSE converter
@@ -128,6 +130,61 @@ dist/c2probe-0.1.0-windows-x86_64.sha256
   --output-mode matched \
   --format jsonl \
   --output result.jsonl
+```
+
+### JSON block listを順番にスキャンする
+
+`scripts/scan-block-list.sh`は、JSON配列の各要素から`name`とIPv4の`cidr`を読み取り、
+1 blockずつ順番に`c2probe`を実行します。Linux、`jq`、`sudo`、実行可能な
+`./c2probe`が必要です。引数は入力JSON、probeディレクトリ、port指定、任意の出力
+ディレクトリの順です。入力例として`ctg-server-block-list.json`を使う場合は次のように
+実行します。
+
+```bash
+chmod +x scripts/scan-block-list.sh
+./scripts/scan-block-list.sh \
+  ./ctg-server-block-list.json \
+  ./probes/dotnet-rat \
+  1-10000
+```
+
+指定したportを`full`モードでスキャンし、指定したディレクトリ内のprobeに一致した
+結果をname別のJSONLとして保存します。portには`80,443,8000-8100`や`all`など、
+`c2probe -p`と同じ形式を指定できます。各blockの処理後（最後のblockを含む）に
+60秒待機します。
+
+```text
+Usage: scripts/scan-block-list.sh BLOCK_LIST PROBE_DIR PORTS [OUTPUT_DIR]
+```
+
+出力ディレクトリを省略すると、入力JSONの拡張子を除いた名前が使われます。
+上記の例の出力先は次のとおりです。
+
+```text
+results/ctg-server-block-list/<name>.jsonl
+```
+
+入力JSONの各要素には、ファイル名として使用できる`name`とIPv4 CIDRが必要です。
+
+```json
+[
+  {
+    "name": "ctg_hk_14_128_32_0_20",
+    "cidr": "14.128.32.0/20"
+  }
+]
+```
+
+第4引数で出力ディレクトリを変更できます。バイナリがリポジトリ直下にない場合は
+`C2PROBE_BIN`を指定します。probeディレクトリとportは用途に応じて置き換えてください。
+
+```bash
+C2PROBE_BIN=./target/release/c2probe \
+  ./scripts/scan-block-list.sh \
+    ./ctg-server-block-list.json \
+    ./probes/darkcomet \
+    80,443,4000-5000 \
+    ./results/ctg-scan
 ```
 
 ## オプション一覧と使い分け

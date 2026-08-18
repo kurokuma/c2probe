@@ -4,8 +4,26 @@ set -Eeuo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "${script_dir}/.." && pwd)"
 
-block_list="${1:-${repo_root}/ctg-server-block-list.json}"
-output_dir="${2:-${repo_root}/results/ctg-server-block-list}"
+usage() {
+  echo "Usage: $0 BLOCK_LIST PROBE_DIR PORTS [OUTPUT_DIR]" >&2
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+if (($# < 3 || $# > 4)); then
+  usage
+  exit 2
+fi
+
+block_list="$1"
+probe_dir="$2"
+ports="$3"
+block_list_base="$(basename -- "${block_list}")"
+output_name="${block_list_base%.*}"
+output_dir="${4:-${repo_root}/results/${output_name:-block-list}}"
 c2probe_bin="${C2PROBE_BIN:-${repo_root}/c2probe}"
 
 command -v jq >/dev/null 2>&1 || {
@@ -15,6 +33,11 @@ command -v jq >/dev/null 2>&1 || {
 
 [[ -f "${block_list}" ]] || {
   echo "Block list not found: ${block_list}" >&2
+  exit 2
+}
+
+[[ -d "${probe_dir}" ]] || {
+  echo "Probe directory not found: ${probe_dir}" >&2
   exit 2
 }
 
@@ -51,8 +74,8 @@ while IFS=$'\t' read -r name cidr; do
 
   sudo -- "${c2probe_bin}" \
     -t "${cidr}" \
-    -p 1-10000 \
-    --probe-dir "${repo_root}/probes/valleyrat" \
+    -p "${ports}" \
+    --probe-dir "${probe_dir}" \
     --scan-mode full \
     --output-mode matched \
     --format jsonl \
