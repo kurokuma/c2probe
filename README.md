@@ -31,8 +31,7 @@ Raw SYNには`CAP_NET_RAW`またはroot権限が必要です。常時rootで実�
 ├── scripts/
 │   ├── build-linux.sh       # Linux上でLinux版を作成
 │   ├── build-windows.ps1    # Windows上でWindows版を作成
-│   ├── scan-block-list.sh   # JSON block listをnameごとにscan
-│   └── scan-block-list-s3.sh # 完了した日次scanをS3へupload
+│   └── scan-block-list.sh   # 日付別JSONL保存と任意のS3 upload
 ├── src/
 │   ├── main.rs             # c2probe
 │   └── bin/nse2yaml.rs     # strict NSE converter
@@ -137,9 +136,18 @@ dist/c2probe-0.1.0-windows-x86_64.sha256
 
 `scripts/scan-block-list.sh`は、JSON配列の各要素から`name`とIPv4の`cidr`を読み取り、
 1 blockずつ順番に`c2probe`を実行します。Linux、`jq`、`sudo`、実行可能な
-`./c2probe`が必要です。引数は入力JSON、probeディレクトリ、port指定、任意の出力
-ディレクトリの順です。入力例として`ctg-server-block-list.json`を使う場合は次のように
-実行します。
+`./c2probe`が必要です。結果は実行日とprobeフォルダ別にローカルへ必ず保存し、
+`--s3-bucket`を指定した場合だけ全scan完了後にS3へアップロードします。
+
+```text
+Usage: scripts/scan-block-list.sh BLOCK_LIST PROBE_DIR PORTS [OPTIONS]
+
+Options:
+  --output-root DIR    Local output root（既定: ./result）
+  --s3-bucket BUCKET  完了したJSONLを指定bucketへupload
+```
+
+入力例として`ctg-server-block-list.json`を使い、ローカル保存だけを行う例です。
 
 ```bash
 chmod +x scripts/scan-block-list.sh
@@ -155,14 +163,13 @@ chmod +x scripts/scan-block-list.sh
 60秒待機します。
 
 ```text
-Usage: scripts/scan-block-list.sh BLOCK_LIST PROBE_DIR PORTS [OUTPUT_DIR]
+result/<yyyyMMdd>/<probe_folder>/<name>.jsonl
 ```
 
-出力ディレクトリを省略すると、入力JSONの拡張子を除いた名前が使われます。
-上記の例の出力先は次のとおりです。
+2026年8月22日の出力例:
 
 ```text
-results/ctg-server-block-list/<name>.jsonl
+result/20260822/dotnet-rat/ctg_hk_14_128_32_0_20.jsonl
 ```
 
 入力JSONの各要素には、ファイル名として使用できる`name`とIPv4 CIDRが必要です。
@@ -176,45 +183,40 @@ results/ctg-server-block-list/<name>.jsonl
 ]
 ```
 
-第4引数で出力ディレクトリを変更できます。バイナリがリポジトリ直下にない場合は
-`C2PROBE_BIN`を指定します。probeディレクトリとportは用途に応じて置き換えてください。
+`--output-root`で出力rootを変更できます。再実行やbackfillでは`SCAN_DATE`、バイナリが
+リポジトリ直下にない場合は`C2PROBE_BIN`を指定します。
 
 ```bash
-C2PROBE_BIN=./target/release/c2probe \
+SCAN_DATE=20260821 C2PROBE_BIN=./target/release/c2probe \
   ./scripts/scan-block-list.sh \
     ./ctg-server-block-list.json \
     ./probes/darkcomet \
     80,443,4000-5000 \
-    ./results/ctg-scan
+    --output-root ./result
 ```
 
-### 完了した日次スキャンをS3へアップロードする
+同じ日付、probeフォルダ、nameで再実行すると、既存のJSONLを上書きします。異なるprobe
+ディレクトリは日付の下で自動的に別ディレクトリへ分離されます。
 
-`scripts/scan-block-list-s3.sh`は通常版と同じ順次スキャンを行い、すべてのblockが正常に
-完了してから、その実行で生成したJSONLだけをS3へアップロードします。途中でscanが失敗した
-場合はアップロードを開始しません。Linux、`jq`、AWS CLI v2、利用可能なAWS認証情報、
-対象bucketへの`s3:PutObject`権限が必要です。
+#### S3アップロードを有効にする
 
-```text
-Usage: scripts/scan-block-list-s3.sh BLOCK_LIST PROBE_DIR PORTS S3_BUCKET [LOCAL_OUTPUT_DIR]
-```
-
-`ctg-server-block-list.json`を入力にして1日1回実行する例です。`S3_BUCKET`には
-`s3://`を付けずbucket名だけを指定します。
+`--s3-bucket`を省略した場合、AWS CLIは不要でS3へ通信しません。指定した場合は、scan開始前に
+AWS認証を確認し、すべてのblockが正常に完了してから、その実行で生成したJSONLだけを
+アップロードします。AWS CLI v2、利用可能なAWS認証情報、対象bucketへの
+`s3:PutObject`権限が必要です。bucket名には`s3://`を付けません。
 
 ```bash
-chmod +x scripts/scan-block-list-s3.sh
-./scripts/scan-block-list-s3.sh \
+./scripts/scan-block-list.sh \
   ./ctg-server-block-list.json \
   ./probes/dotnet-rat \
   1-10000 \
-  your-bucket
+  --s3-bucket your-bucket
 ```
 
-日付は実行hostのローカル日付から`yyyyMMdd`形式で生成され、probeディレクトリの末尾名と
-組み合わせて次のprefixへ保存されます。
+ローカル保存先とS3 upload先:
 
 ```text
+result/<yyyyMMdd>/<probe_folder>/<name>.jsonl
 s3://your-bucket/active_scan/<probe_folder>/<yyyyMMdd>/<name>.jsonl
 ```
 
@@ -222,21 +224,6 @@ s3://your-bucket/active_scan/<probe_folder>/<yyyyMMdd>/<name>.jsonl
 
 ```text
 s3://your-bucket/active_scan/dotnet-rat/20260822/ctg_hk_14_128_32_0_20.jsonl
-```
-
-ローカルの既定出力先は
-`results/<block-list名>/<probe_folder>/<yyyyMMdd>/`です。第5引数で変更できます。
-再実行やbackfillで日付を固定する場合は`SCAN_DATE`、バイナリがリポジトリ直下にない場合は
-`C2PROBE_BIN`を指定します。
-
-```bash
-SCAN_DATE=20260821 C2PROBE_BIN=./target/release/c2probe \
-  ./scripts/scan-block-list-s3.sh \
-    ./ctg-server-block-list.json \
-    ./probes/darkcomet \
-    80,443,4000-5000 \
-    your-bucket \
-    ./results/backfill
 ```
 
 同じ日付、probe、nameで再実行すると同じS3 object keyへアップロードするため、既存objectを
