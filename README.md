@@ -31,7 +31,8 @@ Raw SYNには`CAP_NET_RAW`またはroot権限が必要です。常時rootで実�
 ├── scripts/
 │   ├── build-linux.sh       # Linux上でLinux版を作成
 │   ├── build-windows.ps1    # Windows上でWindows版を作成
-│   └── scan-block-list.sh   # JSON block listをnameごとにscan
+│   ├── scan-block-list.sh   # JSON block listをnameごとにscan
+│   └── scan-block-list-s3.sh # 完了した日次scanをS3へupload
 ├── src/
 │   ├── main.rs             # c2probe
 │   └── bin/nse2yaml.rs     # strict NSE converter
@@ -186,6 +187,123 @@ C2PROBE_BIN=./target/release/c2probe \
     80,443,4000-5000 \
     ./results/ctg-scan
 ```
+
+### 完了した日次スキャンをS3へアップロードする
+
+`scripts/scan-block-list-s3.sh`は通常版と同じ順次スキャンを行い、すべてのblockが正常に
+完了してから、その実行で生成したJSONLだけをS3へアップロードします。途中でscanが失敗した
+場合はアップロードを開始しません。Linux、`jq`、AWS CLI v2、利用可能なAWS認証情報、
+対象bucketへの`s3:PutObject`権限が必要です。
+
+```text
+Usage: scripts/scan-block-list-s3.sh BLOCK_LIST PROBE_DIR PORTS S3_BUCKET [LOCAL_OUTPUT_DIR]
+```
+
+`ctg-server-block-list.json`を入力にして1日1回実行する例です。`S3_BUCKET`には
+`s3://`を付けずbucket名だけを指定します。
+
+```bash
+chmod +x scripts/scan-block-list-s3.sh
+./scripts/scan-block-list-s3.sh \
+  ./ctg-server-block-list.json \
+  ./probes/dotnet-rat \
+  1-10000 \
+  your-bucket
+```
+
+日付は実行hostのローカル日付から`yyyyMMdd`形式で生成され、probeディレクトリの末尾名と
+組み合わせて次のprefixへ保存されます。
+
+```text
+s3://your-bucket/active_scan/<probe_folder>/<yyyyMMdd>/<name>.jsonl
+```
+
+上記の例を2026年8月22日に実行した場合:
+
+```text
+s3://your-bucket/active_scan/dotnet-rat/20260822/ctg_hk_14_128_32_0_20.jsonl
+```
+
+ローカルの既定出力先は
+`results/<block-list名>/<probe_folder>/<yyyyMMdd>/`です。第5引数で変更できます。
+再実行やbackfillで日付を固定する場合は`SCAN_DATE`、バイナリがリポジトリ直下にない場合は
+`C2PROBE_BIN`を指定します。
+
+```bash
+SCAN_DATE=20260821 C2PROBE_BIN=./target/release/c2probe \
+  ./scripts/scan-block-list-s3.sh \
+    ./ctg-server-block-list.json \
+    ./probes/darkcomet \
+    80,443,4000-5000 \
+    your-bucket \
+    ./results/backfill
+```
+
+同じ日付、probe、nameで再実行すると同じS3 object keyへアップロードするため、既存objectを
+上書きします。bucketのversioningやretention要件は運用側で設定してください。
+
+#### Athenaの日付パーティション
+
+このS3配置はHive形式の`scan_date=...`ではありません。Athenaのpartition projectionで
+`probe_folder`と`scan_date`をprefixへ対応付けると、日次の`ALTER TABLE ADD PARTITION`は不要です。
+次のDDLで`YOUR_BUCKET`と日付範囲の開始日を置き換えてください。
+
+```sql
+CREATE EXTERNAL TABLE c2probe_active_scan (
+  `timestamp` string,
+  target struct<ip:string,port:int,transport:string>,
+  discovery struct<port_state:string,syn_rtt_ms:bigint>,
+  probe struct<
+    name:string,
+    family:string,
+    protocol:string,
+    confirmed:boolean,
+    probable:boolean,
+    observed:boolean,
+    confidence:double,
+    status:string,
+    duration_ms:bigint
+  >
+)
+PARTITIONED BY (
+  probe_folder string,
+  scan_date string
+)
+ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
+LOCATION 's3://YOUR_BUCKET/active_scan/'
+TBLPROPERTIES (
+  'projection.enabled'='true',
+  'projection.probe_folder.type'='injected',
+  'projection.scan_date.type'='date',
+  'projection.scan_date.format'='yyyyMMdd',
+  'projection.scan_date.range'='20260822,NOW',
+  'projection.scan_date.interval'='1',
+  'projection.scan_date.interval.unit'='DAYS',
+  'storage.location.template'='s3://YOUR_BUCKET/active_scan/${probe_folder}/${scan_date}/'
+);
+```
+
+`probe_folder`は`injected` partitionなので必ず単一値または`IN`で絞り、`scan_date`も検索対象の
+日付または期間を指定します。partition条件なしで全prefixを読むSQLを避けることで、Athenaの
+scan量を抑えられます。
+
+```sql
+SELECT
+  scan_date,
+  target.ip,
+  target.port,
+  probe.family,
+  probe.status,
+  probe.confidence
+FROM c2probe_active_scan
+WHERE probe_folder = 'dotnet-rat'
+  AND scan_date BETWEEN '20260801' AND '20260831'
+ORDER BY scan_date, target.ip, target.port;
+```
+
+JSONLは列指向形式ではないため、partitionで日付とprobeを絞っても選択列だけを読むことは
+できません。データ量が増えた場合は、日次JSONLをParquetへ変換するとさらにscan料金を
+削減できます。
 
 ## オプション一覧と使い分け
 
