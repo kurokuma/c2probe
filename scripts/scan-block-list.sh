@@ -90,6 +90,16 @@ fi
   exit 2
 }
 
+if ((EUID == 0)); then
+  c2probe_command=("${c2probe_bin}")
+else
+  command -v sudo >/dev/null 2>&1 || {
+    echo "sudo is required when not running as root" >&2
+    exit 2
+  }
+  c2probe_command=(sudo -- "${c2probe_bin}")
+fi
+
 if [[ ! "${scan_date}" =~ ^[0-9]{8}$ ]] ||
   [[ "$(date -d "${scan_date}" +%Y%m%d 2>/dev/null || true)" != "${scan_date}" ]]; then
   echo "SCAN_DATE must be a valid date in yyyyMMdd form: ${scan_date}" >&2
@@ -139,7 +149,7 @@ while IFS=$'\t' read -r name cidr; do
   output_file="${output_dir}/${name}.jsonl"
   echo "Scanning ${name}: ${cidr} -> ${output_file}" >&2
 
-  sudo -- "${c2probe_bin}" \
+  "${c2probe_command[@]}" \
     -t "${cidr}" \
     -p "${ports}" \
     --probe-dir "${probe_dir}" \

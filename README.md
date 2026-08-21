@@ -135,8 +135,8 @@ dist/c2probe-0.1.0-windows-x86_64.sha256
 ### JSON block listを順番にスキャンする
 
 `scripts/scan-block-list.sh`は、JSON配列の各要素から`name`とIPv4の`cidr`を読み取り、
-1 blockずつ順番に`c2probe`を実行します。Linux、`jq`、`sudo`、実行可能な
-`./c2probe`が必要です。結果は実行日とprobeフォルダ別にローカルへ必ず保存し、
+1 blockずつ順番に`c2probe`を実行します。Linux、`jq`、実行可能な`./c2probe`が必要です。
+root以外で実行する場合は`sudo`も必要です。結果は実行日とprobeフォルダ別にローカルへ必ず保存し、
 `--s3-bucket`を指定した場合だけ全scan完了後にS3へアップロードします。
 
 ```text
@@ -228,6 +228,28 @@ s3://your-bucket/active_scan/dotnet-rat/20260822/ctg_hk_14_128_32_0_20.jsonl
 
 同じ日付、probe、nameで再実行すると同じS3 object keyへアップロードするため、既存objectを
 上書きします。bucketのversioningやretention要件は運用側で設定してください。
+
+#### rootのcrontabで毎日UTC 00:00に実行する
+
+実行hostとcron daemonがJSTの場合、UTC 00:00は同日のJST 09:00です。JSTには夏時間が
+ないため、rootのcrontabには`0 9 * * *`を設定します。`/opt/c2probe`とbucket名は実際の
+配置に置き換えてください。
+
+```bash
+sudo crontab -e
+```
+
+```cron
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+0 9 * * * /usr/bin/flock -n /run/lock/c2probe-scan.lock /opt/c2probe/scripts/scan-block-list.sh /opt/c2probe/ctg-server-block-list.json /opt/c2probe/probes/dotnet-rat 1-10000 --s3-bucket your-bucket >> /var/log/c2probe-scan.log 2>&1
+```
+
+`flock`は前日のscanが残っている場合の多重起動を防ぎます。root実行時はスクリプトが
+`c2probe`を直接起動するため、cron内で`sudo`を重ねる必要はありません。S3へuploadしない
+場合は`--s3-bucket your-bucket`を削除します。JST 09:00に起動するため、既定の
+`yyyyMMdd`も対応するUTC日付と一致します。
 
 #### Athenaの日付パーティション
 
