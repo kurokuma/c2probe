@@ -36,9 +36,11 @@ __pycache__/
 
 # The result tree is pushed daily and published through GitHub Pages, so the
 # scan output under it stays tracked. Everything else above still applies.
-!/result/**/*.jsonl
-!/result/**/*.csv
-!/result/**/*.txt
+/result/**/*.jsonl
+/result/**/*.csv
+/result/**/*.txt
+/result/**/*.html
+/result/**/*.md
 
 # Local target and exclusion lists
 /targets*.txt
