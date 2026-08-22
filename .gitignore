@@ -3,6 +3,7 @@
 /dist/
 /generated-probes/
 /docs/*
+!/docs/FIXES.md
 !/docs/NSE_CONVERSION.md
 !/docs/NSE_COVERAGE.md
 !/docs/PERFORMANCE.md
@@ -11,6 +12,16 @@
 *.profraw
 /coverage/
 /tarpaulin-report.html
+
+# Python tooling
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+/.venv/
+/venv/
 
 # Scan output and captures
 *.jsonl
