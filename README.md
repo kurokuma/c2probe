@@ -28,10 +28,12 @@ Raw SYNには`CAP_NET_RAW`またはroot権限が必要です。常時rootで実�
 ├── Makefile
 ├── ctg-server-block-list.json # block list入力例
 ├── probes/                  # family別の24 application probe YAML
+├── result/                  # scan-block-list.shの出力（日付/probe別）
 ├── scripts/
 │   ├── build-linux.sh       # Linux上でLinux版を作成
 │   ├── build-windows.ps1    # Windows上でWindows版を作成
-│   └── scan-block-list.sh   # 日付別JSONL保存と任意のS3 upload
+│   ├── scan-block-list.sh   # 日付別JSONL保存と任意のS3 upload
+│   └── summarize_results.py # 日付単位の結果サマリ生成
 ├── src/
 │   ├── main.rs             # c2probe
 │   └── bin/nse2yaml.rs     # strict NSE converter
@@ -529,6 +531,57 @@ JSONL/CSVは1レコード書くたびにflushするため、長時間scanの途�
 さらに`--flush-interval`（既定1000 ms）ごとに`sync_data`し、正常終了、Ctrl+C、別taskの
 エラー時にもqueueをdrainして最終同期してから終了します。したがって途中で一部処理が失敗しても、
 それ以前に確定した結果を空のファイルとして失いません。
+
+## 結果サマリの生成
+
+`scan-block-list.sh`は結果を日付ごと、probeごとに保存します。
+
+```text
+result/
+  20260822/
+    valleyrat/
+      ctg_jp_137_220_144_0_20.jsonl
+      ...
+    cobaltstrike/
+      ...
+```
+
+`scripts/summarize_results.py`はこの構造を読み、日付単位でサマリを生成します。標準
+ライブラリだけで動作するため、追加のPythonパッケージは不要です。
+
+```bash
+python scripts/summarize_results.py                  # 最新の日付をstdoutへ
+python scripts/summarize_results.py --date 20260822
+python scripts/summarize_results.py --write          # SUMMARY.mdを日付ディレクトリへ
+python scripts/summarize_results.py --all --write    # 全日付を一括生成
+python scripts/summarize_results.py --format json    # 機械処理向け
+python scripts/summarize_results.py --compare-previous
+python scripts/summarize_results.py --strict         # 整合性の問題があれば終了コード1
+```
+
+出力に含まれる内容:
+
+- probeディレクトリごとの検出数、ホスト数、confidence、status内訳、走査時間帯
+- ファイル（=スキャンレンジ）別の検出数と、検出0件だったレンジ
+- /24（IPv6は/64）単位の集中度とポート頻度
+- ポート構成が完全一致するホスト群。同一テンプレートで展開された疑いを見つける
+- probe固有フィールドの値分布
+- 複数probeで同時に検出されたホスト
+- 整合性チェック（JSON破損、行途中での切断、宣言CIDRとの不一致、`IP:PORT`重複）
+
+ファイル名末尾の`_A_B_C_D_P`はレンジ`A.B.C.D/P`として解釈し、そのレンジ外のレコードが
+混ざっていないか検査します。この規則に合わない名前のファイルはCIDR検査だけを省略します。
+
+`--compare-previous`は直前の日付ディレクトリと比較し、probeごとに新規・消失した
+ホストと`IP:PORT`を出します。日次運用での差分確認に使います。
+
+`--strict`はJSON破損、切断、レンジ外レコードのいずれかを検出した場合に終了コード1を
+返すため、cronやCIでの異常検知に使えます。
+
+```bash
+./scripts/scan-block-list.sh ctg-server-block-list.json probes/valleyrat
+python scripts/summarize_results.py --write --compare-previous --strict
+```
 
 ## 中断とシャットダウン
 
