@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>スキャン結果 20260822</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1a1c20; --muted: #5c6370; --line: #d8dce3;
+  --card: #f6f7f9; --accent: #1f6feb; --warn: #b3541e; --ok: #1a7f37;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #30363d;
+    --card: #161b22; --accent: #58a6ff; --warn: #d29922; --ok: #3fb950;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 2rem 1.25rem 4rem; background: var(--bg); color: var(--fg);
+  font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans",
+    "Noto Sans JP", Meiryo, sans-serif;
+}
+main { max-width: 1100px; margin: 0 auto; }
+h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+h2 { font-size: 1.25rem; margin: 2.5rem 0 .75rem; padding-bottom: .35rem;
+     border-bottom: 1px solid var(--line); }
+h3 { font-size: 1rem; margin: 1.75rem 0 .5rem; color: var(--muted); }
+a { color: var(--accent); }
+code, .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .92em; }
+.sub { color: var(--muted); margin: 0 0 1.5rem; font-size: .9rem; }
+nav { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; font-size: .9rem; }
+.cards { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+         margin: 1rem 0 .5rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: .8rem .9rem; }
+.card .label { color: var(--muted); font-size: .78rem; letter-spacing: .04em; }
+.card .value { font-size: 1.5rem; font-weight: 600; margin-top: .15rem; }
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+tbody tr:hover { background: var(--card); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.warn { color: var(--warn); font-weight: 600; }
+.empty { color: var(--muted); font-style: italic; }
+.note { background: var(--card); border-left: 3px solid var(--accent); padding: .75rem 1rem;
+        border-radius: 0 6px 6px 0; margin: 1rem 0; font-size: .88rem; }
+.trend { width: 100%; height: 160px; }
+.trend rect { fill: var(--accent); }
+.trend text { fill: var(--muted); font-size: 10px; }
+footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line);
+         color: var(--muted); font-size: .82rem; }
+</style>
+</head>
+<body>
+<main>
+<nav><a href="../index.html">← 一覧</a></nav>
+<h1>スキャン結果 20260822</h1>
+<p class="sub">result/20260822</p>
+<div class="cards"><div class="card"><div class="label">probe</div><div class="value">1</div></div><div class="card"><div class="label">検出</div><div class="value">166</div></div><div class="card"><div class="label">ホスト</div><div class="value">67</div></div><div class="card"><div class="label">confirmed</div><div class="value">166</div></div><div class="card"><div class="label">整合性の問題</div><div class="value">0</div></div></div>
+<h2>probe: <code>valleyrat</code></h2>
+<div class="cards"><div class="card"><div class="label">検出</div><div class="value">166</div></div><div class="card"><div class="label">ホスト</div><div class="value">67</div></div><div class="card"><div class="label">IP:PORT</div><div class="value">166</div></div><div class="card"><div class="label">confirmed</div><div class="value">166</div></div></div>
+<div class="scroll"><table><thead><tr><th>項目</th><th>値</th></tr></thead><tbody><tr><td>confirmed / unconfirmed</td><td>166 / 0</td></tr><tr><td>ファイル（検出あり）</td><td>26 (14)</td></tr><tr><td>confidence</td><td>0.95</td></tr><tr><td>probe所要時間</td><td>最小11 / 平均107 / 最大174 ms</td></tr><tr><td>SYN RTT</td><td>最小8 / 最大80 ms</td></tr><tr><td>RTT記録率</td><td>166 / 166</td></tr><tr><td>RTT量子化</td><td>4 ms刻み</td></tr><tr><td>走査時間帯</td><td>2026-08-22T00:22:37.779790+00:00 - 2026-08-22T05:49:39.769583+00:00</td></tr></tbody></table></div>
+<h3>probe / status内訳</h3>
+<div class="scroll"><table><thead><tr><th>probe</th><th class="num">件数</th></tr></thead><tbody><tr><td>valleyrat-vvas</td><td class="num">166</td></tr></tbody></table></div>
+<div class="scroll"><table><thead><tr><th>status</th><th class="num">件数</th></tr></thead><tbody><tr><td>vvas_stage_header_match</td><td class="num">166</td></tr></tbody></table></div>
+<h3>レンジ別</h3>
+<div class="scroll"><table><thead><tr><th>ファイル</th><th>宣言CIDR</th><th class="num">検出</th><th class="num">ホスト</th></tr></thead><tbody><tr><td><a href="valleyrat/ctg_jp_137_220_144_0_20.jsonl">ctg_jp_137_220_144_0_20.jsonl</a></td><td>137.220.144.0/20</td><td class="num">35</td><td class="num">8</td></tr><tr><td><a href="valleyrat/ctg_hk_143_92_48_0_20.jsonl">ctg_hk_143_92_48_0_20.jsonl</a></td><td>143.92.48.0/20</td><td class="num">32</td><td class="num">8</td></tr><tr><td><a href="valleyrat/ctg_jp_apac_134_122_128_0_20.jsonl">ctg_jp_apac_134_122_128_0_20.jsonl</a></td><td>134.122.128.0/20</td><td class="num">21</td><td class="num">12</td></tr><tr><td><a href="valleyrat/ctg_jp_apac_134_122_160_0_20.jsonl">ctg_jp_apac_134_122_160_0_20.jsonl</a></td><td>134.122.160.0/20</td><td class="num">18</td><td class="num">3</td></tr><tr><td><a href="valleyrat/ctg_hk_118_107_40_0_21.jsonl">ctg_hk_118_107_40_0_21.jsonl</a></td><td>118.107.40.0/21</td><td class="num">12</td><td class="num">6</td></tr><tr><td><a href="valleyrat/ctg_jp_202_61_136_0_21.jsonl">ctg_jp_202_61_136_0_21.jsonl</a></td><td>202.61.136.0/21</td><td class="num">8</td><td class="num">4</td></tr><tr><td><a href="valleyrat/ctg_jp_apac_134_122_192_0_20.jsonl">ctg_jp_apac_134_122_192_0_20.jsonl</a></td><td>134.122.192.0/20</td><td class="num">7</td><td class="num">5</td></tr><tr><td><a href="valleyrat/ctg_hk_118_107_0_0_21.jsonl">ctg_hk_118_107_0_0_21.jsonl</a></td><td>118.107.0.0/21</td><td class="num">6</td><td class="num">3</td></tr><tr><td><a href="valleyrat/ctg_jp_apac_134_122_144_0_20.jsonl">ctg_jp_apac_134_122_144_0_20.jsonl</a></td><td>134.122.144.0/20</td><td class="num">6</td><td class="num">3</td></tr><tr><td><a href="valleyrat/ctg_apac_112_213_96_0_19.jsonl">ctg_apac_112_213_96_0_19.jsonl</a></td><td>112.213.96.0/19</td><td class="num">5</td><td class="num">4</td></tr><tr><td><a href="valleyrat/ctg_jp_137_220_240_0_20.jsonl">ctg_jp_137_220_240_0_20.jsonl</a></td><td>137.220.240.0/20</td><td class="num">5</td><td class="num">3</td></tr><tr><td><a href="valleyrat/ctg_jp_apac_134_122_176_0_20.jsonl">ctg_jp_apac_134_122_176_0_20.jsonl</a></td><td>134.122.176.0/20</td><td class="num">5</td><td class="num">3</td></tr><tr><td><a href="valleyrat/ctg_apac_121_127_224_0_19.jsonl">ctg_apac_121_127_224_0_19.jsonl</a></td><td>121.127.224.0/19</td><td class="num">4</td><td class="num">3</td></tr><tr><td><a href="valleyrat/ctg_jp_137_220_192_0_20.jsonl">ctg_jp_137_220_192_0_20.jsonl</a></td><td>137.220.192.0/20</td><td class="num">2</td><td class="num">2</td></tr></tbody></table></div>
+<p class="empty">検出0件: 12ファイル</p>
+<h3>ネットワーク集中度</h3>
+<div class="scroll"><table><thead><tr><th>ネットワーク</th><th class="num">検出</th><th class="num">ホスト</th></tr></thead><tbody><tr><td>143.92.61.0/24</td><td class="num">31</td><td class="num">7</td></tr><tr><td>137.220.155.0/24</td><td class="num">22</td><td class="num">4</td></tr><tr><td>134.122.173.0/24</td><td class="num">18</td><td class="num">3</td></tr><tr><td>137.220.153.0/24</td><td class="num">13</td><td class="num">4</td></tr><tr><td>134.122.128.0/24</td><td class="num">9</td><td class="num">3</td></tr><tr><td>118.107.40.0/24</td><td class="num">6</td><td class="num">3</td></tr><tr><td>118.107.43.0/24</td><td class="num">6</td><td class="num">3</td></tr><tr><td>134.122.130.0/24</td><td class="num">6</td><td class="num">3</td></tr><tr><td>134.122.155.0/24</td><td class="num">6</td><td class="num">3</td></tr><tr><td>137.220.242.0/24</td><td class="num">4</td><td class="num">2</td></tr><tr><td>202.61.139.0/24</td><td class="num">4</td><td class="num">2</td></tr><tr><td>202.61.140.0/24</td><td class="num">4</td><td class="num">2</td></tr><tr><td>112.213.103.0/24</td><td class="num">3</td><td class="num">2</td></tr><tr><td>118.107.0.0/24</td><td class="num">3</td><td class="num">1</td></tr><tr><td>118.107.1.0/24</td><td class="num">3</td><td class="num">2</td></tr><tr><td>134.122.129.0/24</td><td class="num">3</td><td class="num">3</td></tr><tr><td>134.122.139.0/24</td><td class="num">3</td><td class="num">3</td></tr><tr><td>134.122.203.0/24</td><td class="num">3</td><td class="num">1</td></tr><tr><td>134.122.204.0/24</td><td class="num">3</td><td class="num">3</td></tr><tr><td>121.127.246.0/24</td><td class="num">2</td><td class="num">1</td></tr></tbody></table></div>
+<h3>ポート</h3>
+<div class="scroll"><table><thead><tr><th class="num">ポート</th><th class="num">件数</th></tr></thead><tbody><tr><td class="num">8888</td><td class="num">17</td></tr><tr><td class="num">6666</td><td class="num">13</td></tr><tr><td class="num">8080</td><td class="num">9</td></tr><tr><td class="num">9999</td><td class="num">6</td></tr><tr><td class="num">1618</td><td class="num">5</td></tr><tr><td class="num">1617</td><td class="num">4</td></tr><tr><td class="num">443</td><td class="num">4</td></tr><tr><td class="num">8868</td><td class="num">4</td></tr><tr><td class="num">7800</td><td class="num">4</td></tr><tr><td class="num">1523</td><td class="num">4</td></tr><tr><td class="num">1200</td><td class="num">4</td></tr><tr><td class="num">1180</td><td class="num">4</td></tr><tr><td class="num">1521</td><td class="num">4</td></tr><tr><td class="num">1280</td><td class="num">4</td></tr><tr><td class="num">1520</td><td class="num">4</td></tr><tr><td class="num">1522</td><td class="num">4</td></tr><tr><td class="num">80</td><td class="num">4</td></tr><tr><td class="num">2488</td><td class="num">3</td></tr><tr><td class="num">433</td><td class="num">3</td></tr><tr><td class="num">5555</td><td class="num">3</td></tr></tbody></table></div>
+<h3>ポート構成が一致するホスト群</h3>
+<p class="sub">同一のポート集合を持つホストは、同じ構成テンプレートで展開された可能性がある。</p>
+<div class="scroll"><table><thead><tr><th class="num">ホスト数</th><th>ポート集合</th><th>ホスト</th></tr></thead><tbody><tr><td class="num">6</td><td>8080, 8888</td><td>118.107.43.220, 118.107.43.227, 118.107.43.230, 134.122.130.202, 134.122.130.243, 134.122.130.246</td></tr><tr><td class="num">4</td><td>1180, 1200, 1280, 1520, 1521, 1522, 1523</td><td>143.92.61.2, 143.92.61.11, 143.92.61.14, 143.92.61.19</td></tr><tr><td class="num">4</td><td>443</td><td>112.213.108.202, 134.122.204.10, 134.122.204.16, 134.122.204.23</td></tr><tr><td class="num">4</td><td>8868</td><td>121.127.253.206, 134.122.139.118, 134.122.139.120, 134.122.139.122</td></tr><tr><td class="num">3</td><td>7001, 7002, 8001, 8002, 8080, 8081</td><td>134.122.173.138, 134.122.173.171, 134.122.173.181</td></tr><tr><td class="num">3</td><td>5050, 6666, 8888</td><td>134.122.128.66, 134.122.128.69, 134.122.128.73</td></tr><tr><td class="num">3</td><td>1617, 1618</td><td>112.213.103.61, 118.107.1.216, 121.127.246.76</td></tr><tr><td class="num">3</td><td>2488, 6666</td><td>118.107.40.30, 118.107.40.33, 118.107.40.38</td></tr><tr><td class="num">3</td><td>6666, 8888</td><td>134.122.155.52, 134.122.155.61, 134.122.155.70</td></tr><tr><td class="num">3</td><td>433</td><td>143.92.61.212, 143.92.61.219, 143.92.61.220</td></tr><tr><td class="num">3</td><td>6767</td><td>134.122.129.5, 134.122.129.6, 134.122.129.20</td></tr><tr><td class="num">2</td><td>1111, 2222, 3333, 4444, 5555, 5888, 6666, 7777, 9999</td><td>137.220.155.201, 137.220.155.213</td></tr><tr><td class="num">2</td><td>3306, 8888, 9999</td><td>137.220.153.75, 137.220.153.80</td></tr><tr><td class="num">2</td><td>6667, 6668</td><td>137.220.155.65, 137.220.155.75</td></tr><tr><td class="num">2</td><td>7800, 7811</td><td>202.61.139.46, 202.61.139.206</td></tr><tr><td class="num">2</td><td>9908, 9909</td><td>137.220.242.10, 137.220.242.47</td></tr><tr><td class="num">2</td><td>1618</td><td>112.213.103.58, 121.127.254.27</td></tr><tr><td class="num">2</td><td>6132</td><td>137.220.202.180, 137.220.202.253</td></tr></tbody></table></div>
+<h3>probe固有フィールド</h3>
+<div class="scroll"><table><thead><tr><th>フィールド</th><th class="num">観測数</th><th>値</th></tr></thead><tbody><tr><td>declared_stage_size</td><td class="num">166</td><td>307214</td></tr><tr><td>expected_stage_size</td><td class="num">166</td><td>307214</td></tr><tr><td>stage_downloaded</td><td class="num">166</td><td>false</td></tr><tr><td>victim_metadata_sent</td><td class="num">166</td><td>false</td></tr></tbody></table></div>
+<h3>品質チェック</h3>
+<div class="scroll"><table><thead><tr><th>検査</th><th>結果</th></tr></thead><tbody><tr><td>JSON parse</td><td>全行成功</td></tr><tr><td>ファイル末尾</td><td>全ファイルが改行終端</td></tr><tr><td>CIDR整合</td><td>全レコードが宣言レンジ内</td></tr><tr><td>IP:PORT重複</td><td>なし</td></tr></tbody></table></div>
+<p class="note">この日のJSONL原本は同じディレクトリに置かれています。<code>--output-mode matched</code>の出力には母数（open port数、応答したが一致しなかった件数）が含まれません。</p>
+<footer>
+<p>fingerprintの一致はプロトコル応答の一致であり、特定の攻撃者・キャンペーンへの帰属を意味しません。掲載内容はすべて観測事実の集計です。</p>
+<p>生成: 2026-08-22T12:40:00+00:00 / c2probe summarize_results.py</p>
+</footer>
+</main>
+</body>
+</html>

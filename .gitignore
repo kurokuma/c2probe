@@ -34,6 +34,12 @@ __pycache__/
 *.db
 *.txt
 
+# The result tree is pushed daily and published through GitHub Pages, so the
+# scan output under it stays tracked. Everything else above still applies.
+!/result/**/*.jsonl
+!/result/**/*.csv
+!/result/**/*.txt
+
 # Local target and exclusion lists
 /targets*.txt
 /exclusions*.txt

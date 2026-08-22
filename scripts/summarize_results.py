@@ -14,6 +14,10 @@ The result tree is organised by date and then by probe family::
 Each date directory is summarised on its own; every probe family directory
 becomes a section, and a combined section is added when more than one exists.
 
+The tree is committed and pushed daily, and served by GitHub Pages, so
+``--site`` renders it as a browsable static site: one page per scan date plus an
+index that carries the day-over-day trend.
+
 Only the standard library is used, so this runs anywhere the scanner does.
 
 Examples::
@@ -24,11 +28,13 @@ Examples::
     python scripts/summarize_results.py --format json
     python scripts/summarize_results.py --compare-previous
     python scripts/summarize_results.py --strict            # non-zero exit on defects
+    python scripts/summarize_results.py --site              # GitHub Pages site
 """
 
 from __future__ import annotations
 
 import argparse
+import html
 import ipaddress
 import json
 import math
@@ -202,7 +208,18 @@ def load_file(path: Path) -> tuple:
     return records, report
 
 
+_SECTION_CACHE: dict = {}
+
+
 def load_probe_sections(date_directory: Path) -> list:
+    """Load every probe directory under one scan date.
+
+    Site builds ask for the same date twice (once for its own page, once as the
+    baseline of the next day), so results are memoised.
+    """
+    key = str(date_directory)
+    if key in _SECTION_CACHE:
+        return _SECTION_CACHE[key]
     sections = []
     for child in sorted(p for p in date_directory.iterdir() if p.is_dir()):
         records = []
@@ -223,6 +240,7 @@ def load_probe_sections(date_directory: Path) -> list:
             records.extend(file_records)
             reports.append(report)
         sections.append(ProbeSection(name="(uncategorised)", records=records, files=reports))
+    _SECTION_CACHE[key] = sections
     return sections
 
 
@@ -667,6 +685,506 @@ def render_markdown(summary: dict, comparison: Optional[dict], top: int) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Static site rendering
+# ---------------------------------------------------------------------------
+
+# The result tree is pushed to GitHub daily and served by Pages, so the site has
+# to be self-contained: no CDN, no build step, readable in light and dark.
+SITE_CSS = """
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1a1c20; --muted: #5c6370; --line: #d8dce3;
+  --card: #f6f7f9; --accent: #1f6feb; --warn: #b3541e; --ok: #1a7f37;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #30363d;
+    --card: #161b22; --accent: #58a6ff; --warn: #d29922; --ok: #3fb950;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 2rem 1.25rem 4rem; background: var(--bg); color: var(--fg);
+  font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans",
+    "Noto Sans JP", Meiryo, sans-serif;
+}
+main { max-width: 1100px; margin: 0 auto; }
+h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+h2 { font-size: 1.25rem; margin: 2.5rem 0 .75rem; padding-bottom: .35rem;
+     border-bottom: 1px solid var(--line); }
+h3 { font-size: 1rem; margin: 1.75rem 0 .5rem; color: var(--muted); }
+a { color: var(--accent); }
+code, .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .92em; }
+.sub { color: var(--muted); margin: 0 0 1.5rem; font-size: .9rem; }
+nav { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; font-size: .9rem; }
+.cards { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+         margin: 1rem 0 .5rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: .8rem .9rem; }
+.card .label { color: var(--muted); font-size: .78rem; letter-spacing: .04em; }
+.card .value { font-size: 1.5rem; font-weight: 600; margin-top: .15rem; }
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+tbody tr:hover { background: var(--card); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.warn { color: var(--warn); font-weight: 600; }
+.empty { color: var(--muted); font-style: italic; }
+.note { background: var(--card); border-left: 3px solid var(--accent); padding: .75rem 1rem;
+        border-radius: 0 6px 6px 0; margin: 1rem 0; font-size: .88rem; }
+.trend { width: 100%; height: 160px; }
+.trend rect { fill: var(--accent); }
+.trend text { fill: var(--muted); font-size: 10px; }
+footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line);
+         color: var(--muted); font-size: .82rem; }
+"""
+
+DISCLAIMER = (
+    "fingerprintの一致はプロトコル応答の一致であり、特定の攻撃者・キャンペーンへの"
+    "帰属を意味しません。掲載内容はすべて観測事実の集計です。"
+)
+
+
+def esc(value: Any) -> str:
+    return html.escape(str(value), quote=True)
+
+
+def html_page(title: str, body: str, generated: str) -> str:
+    return (
+        "<!doctype html>\n"
+        '<html lang="ja">\n<head>\n<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        '<meta name="robots" content="noindex">\n'
+        f"<title>{esc(title)}</title>\n"
+        f"<style>{SITE_CSS}</style>\n</head>\n<body>\n<main>\n"
+        f"{body}\n"
+        f'<footer>\n<p>{esc(DISCLAIMER)}</p>\n'
+        f"<p>生成: {esc(generated)} / c2probe summarize_results.py</p>\n</footer>\n"
+        "</main>\n</body>\n</html>\n"
+    )
+
+
+def html_table(headers: Sequence, rows: Sequence, numeric: Sequence = ()) -> str:
+    """Render a table. Cells are escaped, so callers pass text and never markup."""
+    if not rows:
+        return '<p class="empty">該当なし</p>'
+    head = "".join(
+        f'<th class="num">{esc(h)}</th>' if index in numeric else f"<th>{esc(h)}</th>"
+        for index, h in enumerate(headers)
+    )
+    body = []
+    for row in rows:
+        cells = "".join(
+            f'<td class="num">{esc(cell)}</td>' if index in numeric else f"<td>{esc(cell)}</td>"
+            for index, cell in enumerate(row)
+        )
+        body.append(f"<tr>{cells}</tr>")
+    return (
+        '<div class="scroll"><table><thead><tr>'
+        + head
+        + "</tr></thead><tbody>"
+        + "".join(body)
+        + "</tbody></table></div>"
+    )
+
+
+def html_link(href: str, text: str) -> str:
+    return f'<a href="{esc(href)}">{esc(text)}</a>'
+
+
+def html_table_with_links(
+    headers: Sequence, rows: Sequence, link_column: int, numeric: Sequence = ()
+) -> str:
+    """Same as html_table, but one column holds (href, text) pairs."""
+    if not rows:
+        return '<p class="empty">該当なし</p>'
+    head = "".join(
+        f'<th class="num">{esc(h)}</th>' if index in numeric else f"<th>{esc(h)}</th>"
+        for index, h in enumerate(headers)
+    )
+    body = []
+    for row in rows:
+        cells = []
+        for index, cell in enumerate(row):
+            if index == link_column:
+                href, label = cell
+                cells.append(f"<td>{html_link(href, label)}</td>")
+            elif index in numeric:
+                cells.append(f'<td class="num">{esc(cell)}</td>')
+            else:
+                cells.append(f"<td>{esc(cell)}</td>")
+        body.append("<tr>" + "".join(cells) + "</tr>")
+    return (
+        '<div class="scroll"><table><thead><tr>'
+        + head
+        + "</tr></thead><tbody>"
+        + "".join(body)
+        + "</tbody></table></div>"
+    )
+
+
+def html_cards(pairs: Sequence) -> str:
+    cards = "".join(
+        f'<div class="card"><div class="label">{esc(label)}</div>'
+        f'<div class="value">{esc(value)}</div></div>'
+        for label, value in pairs
+    )
+    return f'<div class="cards">{cards}</div>'
+
+
+def trend_chart(entries: Sequence, limit: int = 90) -> str:
+    """Inline SVG bar chart of hosts per scan date; no script, no dependencies."""
+    points = list(entries)[-limit:]
+    if len(points) < 2:
+        return ""
+    width, height, pad = 1000, 160, 24
+    peak = max(entry["hosts"] for entry in points) or 1
+    slot = (width - pad * 2) / len(points)
+    bars = []
+    for index, entry in enumerate(points):
+        bar_height = (height - pad * 2) * entry["hosts"] / peak
+        x = pad + index * slot
+        y = height - pad - bar_height
+        title = f'{entry["date"]}: {entry["hosts"]} hosts / {entry["records"]} records'
+        bars.append(
+            f'<rect x="{x:.1f}" y="{y:.1f}" width="{max(slot - 2, 1):.1f}" '
+            f'height="{bar_height:.1f}"><title>{esc(title)}</title></rect>'
+        )
+    labels = [
+        f'<text x="{pad}" y="{height - 6}">{esc(points[0]["date"])}</text>',
+        f'<text x="{width - pad}" y="{height - 6}" text-anchor="end">'
+        f'{esc(points[-1]["date"])}</text>',
+        f'<text x="{pad}" y="14">{esc(f"最大 {peak} hosts")}</text>',
+    ]
+    return (
+        f'<svg class="trend" viewBox="0 0 {width} {height}" role="img" '
+        'aria-label="日別ホスト数の推移">' + "".join(bars) + "".join(labels) + "</svg>"
+    )
+
+
+def html_probe_section(summary: dict, top: int) -> str:
+    parts = [f'<h2>probe: <code>{esc(summary["probe_directory"])}</code></h2>']
+    parts.append(
+        html_cards(
+            [
+                ("検出", f"{summary['records']:,}"),
+                ("ホスト", f"{summary['hosts']:,}"),
+                ("IP:PORT", f"{summary['endpoints']:,}"),
+                ("confirmed", f"{summary['confirmed']:,}"),
+            ]
+        )
+    )
+    overview = [
+        ["confirmed / unconfirmed", f"{summary['confirmed']} / {summary['unconfirmed']}"],
+        ["ファイル（検出あり）", f"{summary['files']} ({summary['files_with_hits']})"],
+    ]
+    if summary["confidence"]:
+        overview.append(["confidence", ", ".join(f"{v:g}" for v in summary["confidence"])])
+    if summary["duration_ms"]:
+        stats = summary["duration_ms"]
+        overview.append(
+            ["probe所要時間", f"最小{stats['min']} / 平均{stats['mean']:.0f} / 最大{stats['max']} ms"]
+        )
+    if summary["syn_rtt_ms"]:
+        stats = summary["syn_rtt_ms"]
+        overview.append(["SYN RTT", f"最小{stats['min']} / 最大{stats['max']} ms"])
+        overview.append(["RTT記録率", f"{summary['records_with_rtt']} / {summary['records']}"])
+        if summary["syn_rtt_resolution_ms"]:
+            overview.append(["RTT量子化", f"{summary['syn_rtt_resolution_ms']} ms刻み"])
+    if summary["first_seen"]:
+        overview.append(["走査時間帯", f"{summary['first_seen']} - {summary['last_seen']}"])
+    parts.append(html_table(["項目", "値"], overview))
+
+    parts.append("<h3>probe / status内訳</h3>")
+    parts.append(html_table(["probe", "件数"], summary["by_probe"], numeric=(1,)))
+    if summary["by_status"]:
+        parts.append(html_table(["status", "件数"], summary["by_status"], numeric=(1,)))
+
+    parts.append("<h3>レンジ別</h3>")
+    with_hits = sorted(
+        (row for row in summary["per_file"] if row["records"]), key=lambda r: -r["records"]
+    )
+    parts.append(
+        html_table_with_links(
+            ["ファイル", "宣言CIDR", "検出", "ホスト"],
+            [
+                [
+                    (f"{summary['probe_directory']}/{row['file']}", row["file"]),
+                    row["declared_cidr"] or "-",
+                    row["records"],
+                    row["hosts"],
+                ]
+                for row in with_hits
+            ],
+            link_column=0,
+            numeric=(2, 3),
+        )
+    )
+    empty = [row["file"] for row in summary["per_file"] if not row["records"]]
+    if empty:
+        parts.append(f'<p class="empty">検出0件: {len(empty)}ファイル</p>')
+
+    parts.append("<h3>ネットワーク集中度</h3>")
+    hosts_per_network = summary["hosts_per_network"]
+    parts.append(
+        html_table(
+            ["ネットワーク", "検出", "ホスト"],
+            [
+                [network, count, hosts_per_network.get(network, 0)]
+                for network, count in summary["networks"][:top]
+            ],
+            numeric=(1, 2),
+        )
+    )
+
+    parts.append("<h3>ポート</h3>")
+    parts.append(html_table(["ポート", "件数"], summary["ports"][:top], numeric=(0, 1)))
+
+    parts.append("<h3>ポート構成が一致するホスト群</h3>")
+    parts.append(
+        '<p class="sub">同一のポート集合を持つホストは、同じ構成テンプレートで'
+        "展開された可能性がある。</p>"
+    )
+    parts.append(
+        html_table(
+            ["ホスト数", "ポート集合", "ホスト"],
+            [
+                [
+                    len(cluster["hosts"]),
+                    ", ".join(str(port) for port in cluster["ports"]),
+                    ", ".join(str(host) for host in cluster["hosts"]),
+                ]
+                for cluster in summary["clusters"]
+            ],
+            numeric=(0,),
+        )
+    )
+
+    if summary["fields"]:
+        parts.append("<h3>probe固有フィールド</h3>")
+        parts.append(
+            html_table(
+                ["フィールド", "観測数", "値"],
+                [[r["field"], r["observations"], r["values"]] for r in summary["fields"]],
+                numeric=(1,),
+            )
+        )
+
+    integrity = summary["integrity"]
+    parts.append("<h3>品質チェック</h3>")
+    checks = [
+        [
+            "JSON parse",
+            "全行成功" if not integrity["malformed_lines"] else f"{integrity['malformed_lines']}行が破損",
+        ],
+        [
+            "ファイル末尾",
+            "全ファイルが改行終端"
+            if not integrity["truncated_files"]
+            else "切断の疑い: " + ", ".join(integrity["truncated_files"]),
+        ],
+        [
+            "CIDR整合",
+            "全レコードが宣言レンジ内"
+            if not integrity["out_of_range"]
+            else f"{integrity['out_of_range']}件が範囲外",
+        ],
+        [
+            "IP:PORT重複",
+            "なし"
+            if not summary["duplicate_endpoints"]
+            else f"{len(summary['duplicate_endpoints'])}件",
+        ],
+    ]
+    parts.append(html_table(["検査", "結果"], checks))
+    return "\n".join(parts)
+
+
+def render_html_date(
+    summary: dict,
+    comparison: Optional[dict],
+    top: int,
+    previous: Optional[str],
+    following: Optional[str],
+) -> str:
+    totals = summary["totals"]
+    nav = [html_link("../index.html", "← 一覧")]
+    if previous:
+        nav.append(html_link(f"../{previous}/index.html", f"前日 {previous}"))
+    if following:
+        nav.append(html_link(f"../{following}/index.html", f"翌日 {following}"))
+    parts = [
+        "<nav>" + "".join(nav) + "</nav>",
+        f'<h1>スキャン結果 {esc(summary["date"])}</h1>',
+        f'<p class="sub">{esc(summary["source"])}</p>',
+        html_cards(
+            [
+                ("probe", totals["probe_directories"]),
+                ("検出", f"{totals['records']:,}"),
+                ("ホスト", f"{totals['hosts']:,}"),
+                ("confirmed", f"{totals['confirmed']:,}"),
+                ("整合性の問題", totals["defects"]),
+            ]
+        ),
+    ]
+    if totals["defects"]:
+        parts.append(
+            '<p class="note"><span class="warn">整合性の問題が検出されています。</span>'
+            "各probeの品質チェックを確認してください。</p>"
+        )
+    if summary["multi_probe_hosts"]:
+        parts.append("<h2>複数probeで検出されたホスト</h2>")
+        parts.append(
+            html_table(
+                ["ホスト", "probe"],
+                [
+                    [row["host"], ", ".join(row["probes"])]
+                    for row in summary["multi_probe_hosts"][:top]
+                ],
+            )
+        )
+    for section in summary["probes"]:
+        parts.append(html_probe_section(section, top))
+    if comparison:
+        parts.append(f'<h2>前回 {esc(comparison.get("previous_date", ""))} との差分</h2>')
+        parts.append(
+            html_table(
+                ["probe", "新規ホスト", "消失ホスト", "新規IP:PORT", "消失IP:PORT"],
+                [
+                    [
+                        delta["probe_directory"],
+                        len(delta["new_hosts"]),
+                        len(delta["gone_hosts"]),
+                        len(delta["new_endpoints"]),
+                        len(delta["gone_endpoints"]),
+                    ]
+                    for delta in comparison["deltas"]
+                ],
+                numeric=(1, 2, 3, 4),
+            )
+        )
+        for delta in comparison["deltas"]:
+            if delta["new_hosts"] or delta["gone_hosts"]:
+                parts.append(f'<h3>{esc(delta["probe_directory"])}</h3>')
+                parts.append(
+                    html_table(
+                        ["区分", "件数", "ホスト"],
+                        [
+                            ["新規", len(delta["new_hosts"]), preview(delta["new_hosts"], 40)],
+                            ["消失", len(delta["gone_hosts"]), preview(delta["gone_hosts"], 40)],
+                        ],
+                        numeric=(1,),
+                    )
+                )
+    parts.append(
+        '<p class="note">この日のJSONL原本は同じディレクトリに置かれています。'
+        "<code>--output-mode matched</code>の出力には母数（open port数、応答したが"
+        "一致しなかった件数）が含まれません。</p>"
+    )
+    return html_page(
+        f"スキャン結果 {summary['date']}", "\n".join(parts), summary["generated_at"]
+    )
+
+
+def render_html_index(entries: Sequence, generated: str) -> str:
+    latest = entries[-1] if entries else None
+    parts = [
+        "<h1>c2probe スキャン結果</h1>",
+        '<p class="sub">日次スキャンの集計。日付を選ぶとその日の詳細が開きます。</p>',
+    ]
+    if latest:
+        parts.append(
+            html_cards(
+                [
+                    ("最新", latest["date"]),
+                    ("ホスト", f"{latest['hosts']:,}"),
+                    ("検出", f"{latest['records']:,}"),
+                    ("新規ホスト", latest["new_hosts"]),
+                    ("記録日数", len(entries)),
+                ]
+            )
+        )
+    chart = trend_chart(entries)
+    if chart:
+        parts.append("<h2>ホスト数の推移</h2>")
+        parts.append(chart)
+    parts.append("<h2>日別</h2>")
+    parts.append(
+        html_table_with_links(
+            ["日付", "probe", "検出", "ホスト", "新規", "消失", "問題"],
+            [
+                [
+                    (f"{entry['date']}/index.html", entry["date"]),
+                    ", ".join(entry["probe_directories"]) or "-",
+                    entry["records"],
+                    entry["hosts"],
+                    entry["new_hosts"],
+                    entry["gone_hosts"],
+                    entry["defects"] or "",
+                ]
+                for entry in reversed(entries)
+            ],
+            link_column=0,
+            numeric=(2, 3, 4, 5, 6),
+        )
+    )
+    return html_page("c2probe スキャン結果", "\n".join(parts), generated)
+
+
+def build_site(root: Path, dates: Sequence, top: int, minimum_cluster: int) -> int:
+    """Render one page per date plus the index. Returns the total defect count."""
+    generated = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    entries = []
+    summaries = []
+    defects = 0
+    for index, date_directory in enumerate(dates):
+        summary = summarise_date(date_directory, minimum_cluster)
+        defects += summary["totals"]["defects"]
+        comparison = None
+        if index:
+            comparison = compare_sections(
+                load_probe_sections(date_directory), load_probe_sections(dates[index - 1])
+            )
+            comparison["previous_date"] = dates[index - 1].name
+        summaries.append((date_directory, summary, comparison))
+        entries.append(
+            {
+                "date": date_directory.name,
+                "records": summary["totals"]["records"],
+                "hosts": summary["totals"]["hosts"],
+                "defects": summary["totals"]["defects"],
+                "probe_directories": [s["probe_directory"] for s in summary["probes"]],
+                "new_hosts": sum(len(d["new_hosts"]) for d in comparison["deltas"])
+                if comparison
+                else 0,
+                "gone_hosts": sum(len(d["gone_hosts"]) for d in comparison["deltas"])
+                if comparison
+                else 0,
+            }
+        )
+    for index, (date_directory, summary, comparison) in enumerate(summaries):
+        previous = dates[index - 1].name if index else None
+        following = dates[index + 1].name if index + 1 < len(dates) else None
+        emit(
+            render_html_date(summary, comparison, top, previous, following),
+            date_directory / "index.html",
+        )
+        emit(render_markdown(summary, comparison, top), date_directory / "SUMMARY.md")
+        emit(
+            json.dumps(
+                json_ready({"summary": summary, "comparison": comparison}),
+                indent=2,
+                ensure_ascii=False,
+            ),
+            date_directory / "SUMMARY.json",
+        )
+    emit(render_html_index(entries, generated), root / "index.html")
+    # Without this, Pages hands the tree to Jekyll before publishing it.
+    (root / ".nojekyll").write_text("", encoding="utf-8")
+    return defects
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -720,7 +1238,13 @@ def parse_arguments(argv: Optional[Sequence] = None) -> argparse.Namespace:
     )
     parser.add_argument("--root", type=Path, default=Path("result"), help="result tree root")
     parser.add_argument("--all", action="store_true", help="summarise every date directory")
-    parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
+    parser.add_argument("--format", choices=("markdown", "json", "html"), default="markdown")
+    parser.add_argument(
+        "--site",
+        action="store_true",
+        help="build the GitHub Pages site: index.html plus a page, SUMMARY.md and "
+        "SUMMARY.json per date. Covers every date unless one is named.",
+    )
     parser.add_argument("-o", "--output", type=Path, help="write to this path instead of stdout")
     parser.add_argument(
         "--write",
@@ -753,6 +1277,10 @@ def parse_arguments(argv: Optional[Sequence] = None) -> argparse.Namespace:
         parser.error("--all covers every date; drop the date argument")
     if arguments.all and arguments.output:
         parser.error("--all writes one file per date; use --write instead of --output")
+    if arguments.site and arguments.output:
+        parser.error("--site writes into the result tree; --output does not apply")
+    if arguments.site and arguments.format != "markdown":
+        parser.error("--site always writes html, markdown and json together")
     if arguments.top < 1:
         parser.error("--top must be positive")
     return arguments
@@ -779,6 +1307,20 @@ def previous_date(root: Path, current: Path) -> Optional[Path]:
 
 def run(arguments: argparse.Namespace) -> int:
     defects = 0
+    if arguments.site:
+        # A named date still rebuilds the index, because the index lists every day
+        # and its trend would otherwise go stale.
+        dates = available_dates(arguments.root)
+        if arguments.date:
+            wanted = arguments.root / arguments.date
+            if not wanted.is_dir():
+                raise SystemExit(f"{wanted} not found")
+            dates = [d for d in dates if d.name <= wanted.name]
+        defects = build_site(arguments.root, dates, arguments.top, arguments.min_cluster)
+        if arguments.strict and defects:
+            print(f"{defects} integrity problem(s) found", file=sys.stderr)
+            return 1
+        return 0
     for date_directory in target_dates(arguments):
         summary = summarise_date(date_directory, arguments.min_cluster)
         defects += summary["totals"]["defects"]
@@ -796,6 +1338,9 @@ def run(arguments: argparse.Namespace) -> int:
             payload = json_ready({"summary": summary, "comparison": comparison})
             text = json.dumps(payload, indent=2, ensure_ascii=False)
             default_name = "SUMMARY.json"
+        elif arguments.format == "html":
+            text = render_html_date(summary, comparison, arguments.top, None, None)
+            default_name = "index.html"
         else:
             text = render_markdown(summary, comparison, arguments.top)
             default_name = "SUMMARY.md"

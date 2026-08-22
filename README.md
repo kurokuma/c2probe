@@ -28,7 +28,7 @@ Raw SYNには`CAP_NET_RAW`またはroot権限が必要です。常時rootで実�
 ├── Makefile
 ├── ctg-server-block-list.json # block list入力例
 ├── probes/                  # family別の24 application probe YAML
-├── result/                  # scan-block-list.shの出力（日付/probe別）
+├── result/                  # 日次スキャン結果とGitHub Pages用サイト
 ├── scripts/
 │   ├── build-linux.sh       # Linux上でLinux版を作成
 │   ├── build-windows.ps1    # Windows上でWindows版を作成
@@ -532,13 +532,19 @@ JSONL/CSVは1レコード書くたびにflushするため、長時間scanの途�
 エラー時にもqueueをdrainして最終同期してから終了します。したがって途中で一部処理が失敗しても、
 それ以前に確定した結果を空のファイルとして失いません。
 
-## 結果サマリの生成
+## 結果サマリとGitHub Pages
 
-`scan-block-list.sh`は結果を日付ごと、probeごとに保存します。
+`scan-block-list.sh`は結果を日付ごと、probeごとに保存します。このツリーは毎日
+リポジトリへpushし、GitHub Pagesで日々の結果を閲覧する前提です。
 
 ```text
 result/
+  .nojekyll              # Pagesのjekyll処理を無効化
+  index.html             # 日付一覧と推移グラフ
   20260822/
+    index.html           # その日の詳細ページ
+    SUMMARY.md           # GitHub上で読む用
+    SUMMARY.json         # 機械処理用
     valleyrat/
       ctg_jp_137_220_144_0_20.jsonl
       ...
@@ -546,42 +552,66 @@ result/
       ...
 ```
 
-`scripts/summarize_results.py`はこの構造を読み、日付単位でサマリを生成します。標準
-ライブラリだけで動作するため、追加のPythonパッケージは不要です。
+`scripts/summarize_results.py`がこの構造を読み、集計とサイト生成を行います。標準
+ライブラリだけで動作するため、追加のPythonパッケージもビルド手順も不要です。
+
+### 日次の流れ
+
+```bash
+./scripts/scan-block-list.sh ctg-server-block-list.json probes/valleyrat
+python scripts/summarize_results.py --site
+git add result
+git commit -m "scan $(date +%Y%m%d)"
+git push
+```
+
+`--site`は全日付分のページ、`index.html`、`.nojekyll`を生成します。日付を指定した
+場合もindexは全日付を対象に作り直します（一覧と推移が古いままになるため）。
+
+GitHub Pagesの設定は Settings → Pages → Deploy from a branch → `main` / `/ (root)`
+です。公開URLは`https://<user>.github.io/<repo>/result/`になります。
+
+### その他の出力
 
 ```bash
 python scripts/summarize_results.py                  # 最新の日付をstdoutへ
 python scripts/summarize_results.py --date 20260822
-python scripts/summarize_results.py --write          # SUMMARY.mdを日付ディレクトリへ
-python scripts/summarize_results.py --all --write    # 全日付を一括生成
+python scripts/summarize_results.py --write          # SUMMARY.mdだけを生成
+python scripts/summarize_results.py --all --write    # 全日付のSUMMARY.md
 python scripts/summarize_results.py --format json    # 機械処理向け
+python scripts/summarize_results.py --format html    # 単一ページだけを標準出力へ
 python scripts/summarize_results.py --compare-previous
 python scripts/summarize_results.py --strict         # 整合性の問題があれば終了コード1
 ```
 
-出力に含まれる内容:
+### 出力される内容
 
 - probeディレクトリごとの検出数、ホスト数、confidence、status内訳、走査時間帯
-- ファイル（=スキャンレンジ）別の検出数と、検出0件だったレンジ
+- ファイル（=スキャンレンジ）別の検出数と、検出0件だったレンジ。原本JSONLへのリンク付き
 - /24（IPv6は/64）単位の集中度とポート頻度
 - ポート構成が完全一致するホスト群。同一テンプレートで展開された疑いを見つける
 - probe固有フィールドの値分布
 - 複数probeで同時に検出されたホスト
+- 前日との差分（新規・消失したホストと`IP:PORT`）と、日別ホスト数の推移グラフ
 - 整合性チェック（JSON破損、行途中での切断、宣言CIDRとの不一致、`IP:PORT`重複）
 
 ファイル名末尾の`_A_B_C_D_P`はレンジ`A.B.C.D/P`として解釈し、そのレンジ外のレコードが
 混ざっていないか検査します。この規則に合わない名前のファイルはCIDR検査だけを省略します。
 
-`--compare-previous`は直前の日付ディレクトリと比較し、probeごとに新規・消失した
-ホストと`IP:PORT`を出します。日次運用での差分確認に使います。
-
 `--strict`はJSON破損、切断、レンジ外レコードのいずれかを検出した場合に終了コード1を
-返すため、cronやCIでの異常検知に使えます。
+返します。日次ジョブでpushまで止めたくない場合は、生成とチェックを分けてください。
 
 ```bash
-./scripts/scan-block-list.sh ctg-server-block-list.json probes/valleyrat
-python scripts/summarize_results.py --write --compare-previous --strict
+python scripts/summarize_results.py --site
+python scripts/summarize_results.py --strict > /dev/null || echo "整合性の問題あり"
 ```
+
+### 公開範囲について
+
+`result/`配下のJSONLは`.gitignore`の除外対象から明示的に外しています（`!/result/**`）。
+公開リポジトリで運用する場合、調査対象IPとポートがそのまま公開されます。意図しない
+公開を避けるにはprivate repositoryか、Pagesのアクセス制限を利用してください。生成した
+HTMLには`noindex`を付けていますが、これは検索避けであってアクセス制限ではありません。
 
 ## 中断とシャットダウン
 
