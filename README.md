@@ -546,7 +546,6 @@ result/
     SUMMARY.md           # GitHub上で読む用
     SUMMARY.json         # 機械処理用
     valleyrat/
-      ctg_jp_137_220_144_0_20.jsonl
       ...
     cobaltstrike/
       ...
@@ -605,13 +604,6 @@ python scripts/summarize_results.py --strict         # 整合性の問題があ�
 python scripts/summarize_results.py --site
 python scripts/summarize_results.py --strict > /dev/null || echo "整合性の問題あり"
 ```
-
-### 公開範囲について
-
-`result/`配下のJSONLは`.gitignore`の除外対象から明示的に外しています（`!/result/**`）。
-公開リポジトリで運用する場合、調査対象IPとポートがそのまま公開されます。意図しない
-公開を避けるにはprivate repositoryか、Pagesのアクセス制限を利用してください。生成した
-HTMLには`noindex`を付けていますが、これは検索避けであってアクセス制限ではありません。
 
 ## 中断とシャットダウン
 
