@@ -34,6 +34,7 @@ Examples::
 from __future__ import annotations
 
 import argparse
+import csv
 import html
 import ipaddress
 import json
@@ -330,6 +331,39 @@ def constant_fields(records: Sequence, limit: int = 5) -> list:
     return rows
 
 
+def host_details(records: Sequence) -> list:
+    """Per-host rollup for one probe directory on one date."""
+    grouped: dict = {}
+    for record in records:
+        entry = grouped.setdefault(
+            record.ip,
+            {"ports": set(), "probes": set(), "statuses": set(), "rtt": [], "records": 0},
+        )
+        entry["ports"].add(record.port)
+        if record.probe:
+            entry["probes"].add(record.probe)
+        if record.status:
+            entry["statuses"].add(record.status)
+        if isinstance(record.syn_rtt_ms, int):
+            entry["rtt"].append(record.syn_rtt_ms)
+        entry["records"] += 1
+    rows = []
+    for ip in sorted(grouped, key=lambda a: (a.version, a)):
+        entry = grouped[ip]
+        rows.append(
+            {
+                "host": str(ip),
+                "ports": sorted(entry["ports"]),
+                "probes": sorted(entry["probes"]),
+                "statuses": sorted(entry["statuses"]),
+                "records": entry["records"],
+                "syn_rtt_ms": min(entry["rtt"]) if entry["rtt"] else None,
+                "endpoints": [format_endpoint(ip, port) for port in sorted(entry["ports"])],
+            }
+        )
+    return rows
+
+
 def summarise_section(section: ProbeSection, minimum_cluster: int) -> dict:
     records = section.records
     endpoints = Counter(
@@ -377,6 +411,7 @@ def summarise_section(section: ProbeSection, minimum_cluster: int) -> dict:
             "out_of_range": sum(len(f.out_of_range) for f in section.files),
             "unchecked_ranges": [f.path.name for f in section.files if f.declared is None],
         },
+        "hosts_detail": host_details(records),
         "per_file": [
             {
                 "file": f.path.name,
@@ -685,6 +720,317 @@ def render_markdown(summary: dict, comparison: Optional[dict], top: int) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Cross-date overview
+# ---------------------------------------------------------------------------
+
+
+def build_overview(dates: Sequence) -> dict:
+    """Index every host across every scan date.
+
+    The per-date pages answer "what did we see that day". This answers the
+    questions that only the whole series can: when a host first appeared, whether
+    it is still up, and how the population moves day to day.
+    """
+    order = [d.name for d in dates]
+    position = {name: index for index, name in enumerate(order)}
+    hosts: dict = {}
+    per_date = []
+    probe_names: set = set()
+
+    for date_directory in dates:
+        name = date_directory.name
+        sections = load_probe_sections(date_directory)
+        seen_today: set = set()
+        records = 0
+        probe_hosts: dict = {}
+        for section in sections:
+            probe_names.add(section.name)
+            probe_hosts[section.name] = {str(ip) for ip in section.hosts}
+            records += len(section.records)
+            for record in section.records:
+                key = str(record.ip)
+                seen_today.add(key)
+                entry = hosts.setdefault(
+                    key,
+                    {
+                        "host": key,
+                        "version": record.ip.version,
+                        "sort_key": (record.ip.version, int(record.ip)),
+                        "network": str(group_network(record.ip)),
+                        "first_seen": name,
+                        "last_seen": name,
+                        "dates": [],
+                        "probes": set(),
+                        "ports": set(),
+                        "statuses": set(),
+                    },
+                )
+                entry["last_seen"] = max(entry["last_seen"], name)
+                entry["first_seen"] = min(entry["first_seen"], name)
+                entry["ports"].add(record.port)
+                entry["probes"].add(record.probe or section.name)
+                if record.status:
+                    entry["statuses"].add(record.status)
+        for key in seen_today:
+            hosts[key]["dates"].append(name)
+        per_date.append(
+            {
+                "date": name,
+                "records": records,
+                "hosts": len(seen_today),
+                "host_set": seen_today,
+                "probe_hosts": probe_hosts,
+            }
+        )
+
+    # New and gone are derived from the index, so they stay consistent with the
+    # first/last seen columns rather than being recomputed per page.
+    for index, day in enumerate(per_date):
+        previous = per_date[index - 1]["host_set"] if index else set()
+        appeared = day["host_set"] - previous
+        day["new_hosts"] = sorted(appeared, key=lambda h: hosts[h]["sort_key"])
+        day["first_seen_hosts"] = sorted(
+            (h for h in appeared if hosts[h]["first_seen"] == day["date"]),
+            key=lambda h: hosts[h]["sort_key"],
+        )
+        # Seen before, missing yesterday, back today: infrastructure returning.
+        day["returning_hosts"] = sorted(
+            (h for h in appeared if hosts[h]["first_seen"] != day["date"]),
+            key=lambda h: hosts[h]["sort_key"],
+        )
+        day["gone_hosts"] = sorted(previous - day["host_set"], key=lambda h: hosts[h]["sort_key"])
+        day["baseline"] = index == 0
+
+    latest = order[-1] if order else None
+    total_days = len(order)
+    for entry in hosts.values():
+        entry["days_observed"] = len(entry["dates"])
+        entry["active"] = entry["last_seen"] == latest
+        first_index = position[entry["first_seen"]]
+        possible = total_days - first_index
+        entry["coverage"] = entry["days_observed"] / possible if possible else 0.0
+        # Intermittent means gaps *inside* the observed span. A host that simply
+        # stopped appearing is gone, not flapping, so measure first..last only.
+        span = position[entry["last_seen"]] - first_index + 1
+        entry["span"] = span
+        entry["intermittent"] = entry["days_observed"] < span
+
+    return {
+        "dates": order,
+        "per_date": per_date,
+        "hosts": hosts,
+        "latest": latest,
+        "probe_names": sorted(probe_names),
+    }
+
+
+def overview_tables(overview: dict, top: int) -> dict:
+    """Derive the ranked views the overall page shows."""
+    hosts = list(overview["hosts"].values())
+    latest = overview["latest"]
+    by_first_seen = sorted(
+        hosts, key=lambda h: (h["first_seen"], h["sort_key"]), reverse=True
+    )
+    networks = Counter()
+    network_hosts = defaultdict(set)
+    ports = Counter()
+    for entry in hosts:
+        networks[entry["network"]] += 1
+        network_hosts[entry["network"]].add(entry["host"])
+        for port in entry["ports"]:
+            ports[port] += 1
+    return {
+        "new_today": [h for h in hosts if h["first_seen"] == latest],
+        "gone": sorted(
+            (h for h in hosts if not h["active"]),
+            key=lambda h: (h["last_seen"], h["sort_key"]),
+            reverse=True,
+        ),
+        "by_first_seen": by_first_seen,
+        "persistent": sorted(
+            hosts, key=lambda h: (-h["days_observed"], h["sort_key"])
+        )[:top],
+        "intermittent": sorted(
+            (h for h in hosts if h["intermittent"]),
+            key=lambda h: (h["days_observed"] / h["span"], h["sort_key"]),
+        )[:top],
+        "networks": networks.most_common(top),
+        "network_hosts": network_hosts,
+        "ports": ports.most_common(top),
+    }
+
+
+def host_rows(entries: Sequence) -> list:
+    return [
+        [
+            entry["host"],
+            entry["first_seen"],
+            entry["last_seen"],
+            entry["days_observed"],
+            "継続" if entry["active"] else "消失",
+            ", ".join(sorted(entry["probes"])),
+            ", ".join(str(port) for port in sorted(entry["ports"])),
+        ]
+        for entry in entries
+    ]
+
+
+HOST_HEADERS = ["ホスト", "初回", "最終", "観測日数", "状態", "probe", "ポート"]
+
+
+def write_exports(root: Path, overview: dict) -> None:
+    """Flat files for spreadsheets, pandas and OpenSearch."""
+    hosts = sorted(overview["hosts"].values(), key=lambda h: h["sort_key"])
+    csv_path = root / "hosts.csv"
+    with csv_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(
+            [
+                "host",
+                "network",
+                "first_seen",
+                "last_seen",
+                "days_observed",
+                "coverage",
+                "active",
+                "intermittent",
+                "probes",
+                "ports",
+                "statuses",
+            ]
+        )
+        for entry in hosts:
+            writer.writerow(
+                [
+                    entry["host"],
+                    entry["network"],
+                    entry["first_seen"],
+                    entry["last_seen"],
+                    entry["days_observed"],
+                    f"{entry['coverage']:.3f}",
+                    int(entry["active"]),
+                    int(entry["intermittent"]),
+                    " ".join(sorted(entry["probes"])),
+                    " ".join(str(port) for port in sorted(entry["ports"])),
+                    " ".join(sorted(entry["statuses"])),
+                ]
+            )
+    print(f"wrote {csv_path}", file=sys.stderr)
+
+    payload = {
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "dates": overview["dates"],
+        "probe_directories": overview["probe_names"],
+        "daily": [
+            {
+                "date": day["date"],
+                "records": day["records"],
+                "hosts": day["hosts"],
+                "new_hosts": day["new_hosts"],
+                "first_seen_hosts": day["first_seen_hosts"],
+                "returning_hosts": day["returning_hosts"],
+                "gone_hosts": day["gone_hosts"],
+                "baseline": day["baseline"],
+                "hosts_by_probe": {
+                    name: len(values) for name, values in day["probe_hosts"].items()
+                },
+            }
+            for day in overview["per_date"]
+        ],
+        "hosts": [
+            {
+                "host": entry["host"],
+                "network": entry["network"],
+                "first_seen": entry["first_seen"],
+                "last_seen": entry["last_seen"],
+                "days_observed": entry["days_observed"],
+                "coverage": round(entry["coverage"], 3),
+                "active": entry["active"],
+                "intermittent": entry["intermittent"],
+                "probes": sorted(entry["probes"]),
+                "ports": sorted(entry["ports"]),
+                "statuses": sorted(entry["statuses"]),
+            }
+            for entry in hosts
+        ],
+    }
+    emit(json.dumps(payload, indent=2, ensure_ascii=False), root / "overview.json")
+
+
+# ---------------------------------------------------------------------------
+# Charts
+# ---------------------------------------------------------------------------
+
+
+def line_chart(labels: Sequence, series: Sequence, unit: str = "") -> str:
+    """Multi-series line chart as inline SVG. No script, no dependencies."""
+    if len(labels) < 2 or not series:
+        return ""
+    width, height = 1000, 240
+    left, right, top_pad, bottom = 52, 16, 20, 34
+    peak = max((max(s["values"]) for s in series if s["values"]), default=0) or 1
+    plot_width = width - left - right
+    plot_height = height - top_pad - bottom
+    step = plot_width / (len(labels) - 1)
+
+    def point(index: int, value: float) -> tuple:
+        return left + index * step, top_pad + plot_height * (1 - value / peak)
+
+    parts = [
+        f'<svg class="chart" viewBox="0 0 {width} {height}" role="img" '
+        f'aria-label="{esc(series[0]["label"])}ほかの推移">'
+    ]
+    for fraction in (0, 0.5, 1):
+        y = top_pad + plot_height * (1 - fraction)
+        value = peak * fraction
+        parts.append(
+            f'<line class="grid" x1="{left}" y1="{y:.1f}" x2="{width - right}" y2="{y:.1f}"/>'
+        )
+        parts.append(
+            f'<text x="{left - 8}" y="{y + 4:.1f}" text-anchor="end">{value:.0f}{esc(unit)}</text>'
+        )
+    for index, label in enumerate(labels):
+        # Only a few x labels fit; show the ends and a middle marker.
+        if index in (0, len(labels) - 1) or (len(labels) >= 3 and index == len(labels) // 2):
+            x = left + index * step
+            anchor = "start" if index == 0 else "end" if index == len(labels) - 1 else "middle"
+            parts.append(
+                f'<text x="{x:.1f}" y="{height - 12}" text-anchor="{anchor}">{esc(label)}</text>'
+            )
+    for order, entry in enumerate(series):
+        values = entry["values"]
+        coordinates = " ".join(f"{x:.1f},{y:.1f}" for x, y in (point(i, v) for i, v in enumerate(values)))
+        parts.append(f'<g class="s{order % 4}">')
+        parts.append(f'<polyline points="{coordinates}"/>')
+        if len(labels) <= 120:
+            for index, value in enumerate(values):
+                x, y = point(index, value)
+                title = f'{labels[index]} {entry["label"]}: {value}{unit}'
+                parts.append(
+                    f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3"><title>{esc(title)}</title></circle>'
+                )
+        parts.append("</g>")
+    parts.append("</svg>")
+    return "".join(parts)
+
+
+def chart_legend(series: Sequence) -> str:
+    items = "".join(
+        f'<span class="legend-item s{order % 4}"><span class="swatch"></span>'
+        f"{esc(entry['label'])}</span>"
+        for order, entry in enumerate(series)
+    )
+    return f'<div class="legend">{items}</div>'
+
+
+def chart_block(title: str, labels: Sequence, series: Sequence, unit: str = "") -> str:
+    chart = line_chart(labels, series, unit)
+    if not chart:
+        return ""
+    return f"<h3>{esc(title)}</h3>{chart_legend(series)}{chart}"
+
+
+# ---------------------------------------------------------------------------
 # Static site rendering
 # ---------------------------------------------------------------------------
 
@@ -735,9 +1081,175 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .trend { width: 100%; height: 160px; }
 .trend rect { fill: var(--accent); }
 .trend text { fill: var(--muted); font-size: 10px; }
+.chart { width: 100%; height: auto; margin: .25rem 0 1rem; }
+.chart text { fill: var(--muted); font-size: 11px; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart polyline { fill: none; stroke: currentColor; stroke-width: 2;
+                  stroke-linejoin: round; stroke-linecap: round; }
+.chart circle { fill: currentColor; }
+.s0 { color: var(--accent); }
+.s1 { color: var(--ok); }
+.s2 { color: var(--warn); }
+.s3 { color: #a371f7; }
+.legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .82rem; color: var(--muted); }
+.legend-item { display: inline-flex; align-items: center; gap: .35rem; }
+.legend .swatch { width: .8rem; height: .2rem; border-radius: 2px; background: currentColor; }
+.filter { width: 100%; padding: .5rem .7rem; margin: .5rem 0 .75rem; border-radius: 6px;
+          border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: inherit; }
 footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line);
          color: var(--muted); font-size: .82rem; }
 """
+
+HOST_TABLE_LIMIT = 500
+
+# Copy boxes and table filters are the two things that make the pages usable for
+# analysis, and both work without any external library.
+SITE_SCRIPT = """<script>
+(function () {
+  function activate(box) {
+    var holder = box.querySelector(".copydata");
+    var area = box.querySelector("textarea");
+    var count = box.querySelector(".count");
+    var tabs = box.querySelectorAll(".tab");
+    var data = {};
+    try { data = JSON.parse(holder.textContent); } catch (error) { return; }
+    function show(variant) {
+      var lines = data[variant] || [];
+      area.value = lines.join("\\n");
+      count.textContent = lines.length.toLocaleString() + " 件";
+      Array.prototype.forEach.call(tabs, function (tab) {
+        tab.classList.toggle("is-active", tab.dataset.variant === variant);
+      });
+    }
+    Array.prototype.forEach.call(tabs, function (tab) {
+      tab.addEventListener("click", function () { show(tab.dataset.variant); });
+    });
+    area.addEventListener("focus", function () { area.select(); });
+    var button = box.querySelector(".copy");
+    button.addEventListener("click", function () {
+      area.select();
+      var done = function () {
+        var original = button.textContent;
+        button.textContent = "コピーしました";
+        button.classList.add("is-done");
+        setTimeout(function () {
+          button.textContent = original;
+          button.classList.remove("is-done");
+        }, 1500);
+      };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(area.value).then(done, function () {
+          document.execCommand("copy");
+          done();
+        });
+      } else {
+        document.execCommand("copy");
+        done();
+      }
+    });
+    show(tabs.length ? tabs[0].dataset.variant : Object.keys(data)[0]);
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("[data-copybox]"), activate);
+
+  Array.prototype.forEach.call(document.querySelectorAll("[data-filter]"), function (input) {
+    var table = document.getElementById(input.dataset.filter);
+    if (!table) { return; }
+    var rows = Array.prototype.slice.call(table.tBodies[0].rows);
+    var status = document.getElementById(input.dataset.filter + "-count");
+    function apply() {
+      var needle = input.value.trim().toLowerCase();
+      var shown = 0;
+      rows.forEach(function (row) {
+        var hit = !needle || row.textContent.toLowerCase().indexOf(needle) !== -1;
+        row.style.display = hit ? "" : "none";
+        if (hit) { shown += 1; }
+      });
+      if (status) {
+        status.textContent = shown === rows.length
+          ? rows.length.toLocaleString() + " 件"
+          : shown.toLocaleString() + " / " + rows.length.toLocaleString() + " 件";
+      }
+    }
+    input.addEventListener("input", apply);
+    apply();
+  });
+})();
+</script>"""
+
+EXTRA_CSS = """
+.copybox { border: 1px solid var(--line); border-radius: 8px; background: var(--card);
+           margin: 1rem 0 1.5rem; overflow: hidden; }
+.copybar { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+           padding: .5rem .65rem; border-bottom: 1px solid var(--line); }
+.tabs { display: flex; gap: .25rem; }
+.tab { font: inherit; font-size: .82rem; padding: .25rem .6rem; border-radius: 5px;
+       border: 1px solid transparent; background: transparent; color: var(--muted); cursor: pointer; }
+.tab:hover { color: var(--fg); }
+.tab.is-active { background: var(--bg); border-color: var(--line); color: var(--fg); font-weight: 600; }
+.copybar .count { color: var(--muted); font-size: .8rem; margin-left: auto; }
+.copy { font: inherit; font-size: .82rem; padding: .3rem .8rem; border-radius: 5px;
+        border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; }
+.copy:hover { border-color: var(--accent); color: var(--accent); }
+.copy.is-done { border-color: var(--ok); color: var(--ok); }
+.copybox textarea { display: block; width: 100%; border: 0; resize: vertical; padding: .65rem;
+                    background: transparent; color: var(--fg); font-family: ui-monospace,
+                    SFMono-Regular, Consolas, monospace; font-size: .82rem; line-height: 1.5; }
+.copybox textarea:focus { outline: none; }
+.toc { display: flex; gap: .4rem; flex-wrap: wrap; margin: 0 0 1.5rem; }
+.toc a { font-size: .82rem; padding: .25rem .65rem; border: 1px solid var(--line);
+         border-radius: 999px; text-decoration: none; color: var(--muted); }
+.toc a:hover { border-color: var(--accent); color: var(--accent); }
+.filterbar { display: flex; align-items: center; gap: .75rem; margin: .5rem 0 .75rem; }
+.filterbar .count { color: var(--muted); font-size: .8rem; white-space: nowrap; }
+.downloads { font-size: .85rem; color: var(--muted); }
+.downloads a { margin-right: .75rem; }
+"""
+
+
+def copy_box(variants: Sequence, rows: int = 10) -> str:
+    """A selectable, copyable list. `variants` is [(key, label, lines), ...]."""
+    variants = [v for v in variants if v[2]]
+    if not variants:
+        return '<p class="empty">該当なし</p>'
+    payload = json.dumps(
+        {key: list(lines) for key, _, lines in variants}, ensure_ascii=False
+    ).replace("<", "\\u003c")
+    tabs = "".join(
+        f'<button type="button" class="tab" data-variant="{esc(key)}">{esc(label)}</button>'
+        for key, label, _ in variants
+    )
+    return (
+        '<div class="copybox" data-copybox>'
+        f'<div class="copybar"><div class="tabs">{tabs}</div>'
+        '<span class="count"></span>'
+        '<button type="button" class="copy">コピー</button></div>'
+        f'<textarea readonly rows="{rows}" spellcheck="false"></textarea>'
+        f'<script type="application/json" class="copydata">{payload}</script>'
+        "</div>"
+    )
+
+
+def filter_bar(table_id: str, placeholder: str) -> str:
+    return (
+        f'<div class="filterbar"><input class="filter" type="search" '
+        f'data-filter="{esc(table_id)}" placeholder="{esc(placeholder)}" '
+        f'aria-label="{esc(placeholder)}">'
+        f'<span class="count" id="{esc(table_id)}-count"></span></div>'
+    )
+
+
+def table_with_id(markup: str, table_id: str) -> str:
+    return markup.replace("<table>", f'<table id="{esc(table_id)}">', 1)
+
+
+def toc(items: Sequence) -> str:
+    links = "".join(html_link(f"#{anchor}", label) for anchor, label in items)
+    return f'<div class="toc">{links}</div>'
+
+
+def section_heading(level: str, anchor: str, label: str) -> str:
+    return f'<{level} id="{esc(anchor)}">{esc(label)}</{level}>'
+
 
 DISCLAIMER = (
     "fingerprintの一致はプロトコル応答の一致であり、特定の攻撃者・キャンペーンへの"
@@ -756,7 +1268,7 @@ def html_page(title: str, body: str, generated: str) -> str:
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         '<meta name="robots" content="noindex">\n'
         f"<title>{esc(title)}</title>\n"
-        f"<style>{SITE_CSS}</style>\n</head>\n<body>\n<main>\n"
+        f"<style>{SITE_CSS}{EXTRA_CSS}</style>\n</head>\n<body>\n<main>\n"
         f"{body}\n"
         f'<footer>\n<p>{esc(DISCLAIMER)}</p>\n'
         f"<p>生成: {esc(generated)} / c2probe summarize_results.py</p>\n</footer>\n"
@@ -830,36 +1342,6 @@ def html_cards(pairs: Sequence) -> str:
         for label, value in pairs
     )
     return f'<div class="cards">{cards}</div>'
-
-
-def trend_chart(entries: Sequence, limit: int = 90) -> str:
-    """Inline SVG bar chart of hosts per scan date; no script, no dependencies."""
-    points = list(entries)[-limit:]
-    if len(points) < 2:
-        return ""
-    width, height, pad = 1000, 160, 24
-    peak = max(entry["hosts"] for entry in points) or 1
-    slot = (width - pad * 2) / len(points)
-    bars = []
-    for index, entry in enumerate(points):
-        bar_height = (height - pad * 2) * entry["hosts"] / peak
-        x = pad + index * slot
-        y = height - pad - bar_height
-        title = f'{entry["date"]}: {entry["hosts"]} hosts / {entry["records"]} records'
-        bars.append(
-            f'<rect x="{x:.1f}" y="{y:.1f}" width="{max(slot - 2, 1):.1f}" '
-            f'height="{bar_height:.1f}"><title>{esc(title)}</title></rect>'
-        )
-    labels = [
-        f'<text x="{pad}" y="{height - 6}">{esc(points[0]["date"])}</text>',
-        f'<text x="{width - pad}" y="{height - 6}" text-anchor="end">'
-        f'{esc(points[-1]["date"])}</text>',
-        f'<text x="{pad}" y="14">{esc(f"最大 {peak} hosts")}</text>',
-    ]
-    return (
-        f'<svg class="trend" viewBox="0 0 {width} {height}" role="img" '
-        'aria-label="日別ホスト数の推移">' + "".join(bars) + "".join(labels) + "</svg>"
-    )
 
 
 def html_probe_section(summary: dict, top: int) -> str:
@@ -1000,6 +1482,64 @@ def html_probe_section(summary: dict, top: int) -> str:
     return "\n".join(parts)
 
 
+def date_host_rows(summary: dict) -> list:
+    """Merge every probe directory's per-host rollup for the date page table."""
+    merged: dict = {}
+    for section in summary["probes"]:
+        for entry in section["hosts_detail"]:
+            row = merged.setdefault(
+                entry["host"],
+                {
+                    "host": entry["host"],
+                    "ports": set(),
+                    "probes": set(),
+                    "statuses": set(),
+                    "records": 0,
+                    "rtt": [],
+                },
+            )
+            row["ports"].update(entry["ports"])
+            row["probes"].update(entry["probes"] or [section["probe_directory"]])
+            row["statuses"].update(entry["statuses"])
+            row["records"] += entry["records"]
+            if entry["syn_rtt_ms"] is not None:
+                row["rtt"].append(entry["syn_rtt_ms"])
+    ordered = sorted(merged.values(), key=lambda r: ipaddress.ip_address(r["host"]))
+    return [
+        {
+            "host": row["host"],
+            "ports": sorted(row["ports"]),
+            "probes": sorted(row["probes"]),
+            "statuses": sorted(row["statuses"]),
+            "records": row["records"],
+            "syn_rtt_ms": min(row["rtt"]) if row["rtt"] else None,
+        }
+        for row in ordered
+    ]
+
+
+def date_lists(rows: Sequence) -> list:
+    """Copy-ready variants of the day's addresses."""
+    ips = [row["host"] for row in rows]
+    endpoints = [
+        format_endpoint(ipaddress.ip_address(row["host"]), port)
+        for row in rows
+        for port in row["ports"]
+    ]
+    networks = sorted({str(group_network(ipaddress.ip_address(ip))) for ip in ips})
+    return [
+        ("ip", "IPのみ", ips),
+        ("endpoint", "IP:PORT", endpoints),
+        ("network", "ネットワーク", networks),
+        ("csv", "CSV", ["host,ports,probes"]
+            + [
+                f'{row["host"]},{" ".join(str(p) for p in row["ports"])},'
+                f'{" ".join(row["probes"])}'
+                for row in rows
+            ]),
+    ]
+
+
 def render_html_date(
     summary: dict,
     comparison: Optional[dict],
@@ -1008,7 +1548,8 @@ def render_html_date(
     following: Optional[str],
 ) -> str:
     totals = summary["totals"]
-    nav = [html_link("../index.html", "← 一覧")]
+    rows = date_host_rows(summary)
+    nav = [html_link("../index.html", "← 全体")]
     if previous:
         nav.append(html_link(f"../{previous}/index.html", f"前日 {previous}"))
     if following:
@@ -1027,13 +1568,58 @@ def render_html_date(
             ]
         ),
     ]
+    anchors = [("addresses", "アドレス一覧"), ("hosts", "ホスト")]
+    if comparison:
+        anchors.append(("delta", "前日差分"))
+    anchors += [
+        (f'probe-{index}', section["probe_directory"])
+        for index, section in enumerate(summary["probes"])
+    ]
+    parts.append(toc(anchors))
     if totals["defects"]:
         parts.append(
             '<p class="note"><span class="warn">整合性の問題が検出されています。</span>'
             "各probeの品質チェックを確認してください。</p>"
         )
+
+    parts.append(section_heading("h2", "addresses", "アドレス一覧"))
+    parts.append(
+        '<p class="sub">ブロックリストや別ツールへ渡すための一覧。形式を選んでコピーできます。</p>'
+    )
+    parts.append(copy_box(date_lists(rows), rows=12))
+    parts.append(
+        '<p class="downloads">ファイル: '
+        + html_link("hosts.txt", "hosts.txt")
+        + html_link("endpoints.txt", "endpoints.txt")
+        + html_link("hosts.csv", "hosts.csv")
+        + "</p>"
+    )
+
+    parts.append(section_heading("h2", "hosts", "ホスト"))
+    parts.append(filter_bar("date-hosts", "IP、ポート、probe、statusで絞り込み"))
+    parts.append(
+        table_with_id(
+            html_table(
+                ["ホスト", "ポート", "probe", "status", "検出", "RTT"],
+                [
+                    [
+                        row["host"],
+                        ", ".join(str(port) for port in row["ports"]),
+                        ", ".join(row["probes"]),
+                        ", ".join(row["statuses"]),
+                        row["records"],
+                        f'{row["syn_rtt_ms"]} ms' if row["syn_rtt_ms"] is not None else "-",
+                    ]
+                    for row in rows
+                ],
+                numeric=(4,),
+            ),
+            "date-hosts",
+        )
+    )
+
     if summary["multi_probe_hosts"]:
-        parts.append("<h2>複数probeで検出されたホスト</h2>")
+        parts.append("<h3>複数probeで検出されたホスト</h3>")
         parts.append(
             html_table(
                 ["ホスト", "probe"],
@@ -1043,10 +1629,13 @@ def render_html_date(
                 ],
             )
         )
-    for section in summary["probes"]:
-        parts.append(html_probe_section(section, top))
+
     if comparison:
-        parts.append(f'<h2>前回 {esc(comparison.get("previous_date", ""))} との差分</h2>')
+        parts.append(
+            section_heading(
+                "h2", "delta", f'前日 {comparison.get("previous_date", "")} との差分'
+            )
+        )
         parts.append(
             html_table(
                 ["probe", "新規ホスト", "消失ホスト", "新規IP:PORT", "消失IP:PORT"],
@@ -1063,72 +1652,290 @@ def render_html_date(
                 numeric=(1, 2, 3, 4),
             )
         )
-        for delta in comparison["deltas"]:
-            if delta["new_hosts"] or delta["gone_hosts"]:
-                parts.append(f'<h3>{esc(delta["probe_directory"])}</h3>')
-                parts.append(
-                    html_table(
-                        ["区分", "件数", "ホスト"],
-                        [
-                            ["新規", len(delta["new_hosts"]), preview(delta["new_hosts"], 40)],
-                            ["消失", len(delta["gone_hosts"]), preview(delta["gone_hosts"], 40)],
-                        ],
-                        numeric=(1,),
-                    )
+        new_hosts = sorted(
+            {host for delta in comparison["deltas"] for host in delta["new_hosts"]},
+            key=ipaddress.ip_address,
+        )
+        gone_hosts = sorted(
+            {host for delta in comparison["deltas"] for host in delta["gone_hosts"]},
+            key=ipaddress.ip_address,
+        )
+        if new_hosts or gone_hosts:
+            parts.append("<h3>新規・消失ホスト</h3>")
+            parts.append(
+                copy_box(
+                    [("new", f"新規 ({len(new_hosts)})", new_hosts),
+                     ("gone", f"消失 ({len(gone_hosts)})", gone_hosts)],
+                    rows=8,
                 )
+            )
+
+    for index, section in enumerate(summary["probes"]):
+        parts.append(f'<div id="probe-{index}"></div>')
+        parts.append(html_probe_section(section, top))
+
     parts.append(
         '<p class="note">この日のJSONL原本は同じディレクトリに置かれています。'
         "<code>--output-mode matched</code>の出力には母数（open port数、応答したが"
         "一致しなかった件数）が含まれません。</p>"
     )
+    parts.append(SITE_SCRIPT)
     return html_page(
         f"スキャン結果 {summary['date']}", "\n".join(parts), summary["generated_at"]
     )
 
 
-def render_html_index(entries: Sequence, generated: str) -> str:
-    latest = entries[-1] if entries else None
+def render_html_index(
+    overview: dict, entries: Sequence, generated: str, top: int
+) -> str:
+    """The overall page: cross-date trends and the host index."""
+    tables = overview_tables(overview, top)
+    hosts = overview["hosts"]
+    latest = overview["latest"]
+    days = overview["per_date"]
+    active = [h for h in hosts.values() if h["active"]]
     parts = [
         "<h1>c2probe スキャン結果</h1>",
-        '<p class="sub">日次スキャンの集計。日付を選ぶとその日の詳細が開きます。</p>',
+        '<p class="sub">日次スキャンの全期間集計。個々の日付の詳細は日別ページを参照。</p>',
     ]
-    if latest:
-        parts.append(
-            html_cards(
-                [
-                    ("最新", latest["date"]),
-                    ("ホスト", f"{latest['hosts']:,}"),
-                    ("検出", f"{latest['records']:,}"),
-                    ("新規ホスト", latest["new_hosts"]),
-                    ("記録日数", len(entries)),
-                ]
-            )
-        )
-    chart = trend_chart(entries)
-    if chart:
-        parts.append("<h2>ホスト数の推移</h2>")
-        parts.append(chart)
-    parts.append("<h2>日別</h2>")
+    if not days:
+        return html_page("c2probe スキャン結果", "\n".join(parts), generated)
+
+    today = days[-1]
     parts.append(
-        html_table_with_links(
-            ["日付", "probe", "検出", "ホスト", "新規", "消失", "問題"],
+        html_cards(
             [
-                [
-                    (f"{entry['date']}/index.html", entry["date"]),
-                    ", ".join(entry["probe_directories"]) or "-",
-                    entry["records"],
-                    entry["hosts"],
-                    entry["new_hosts"],
-                    entry["gone_hosts"],
-                    entry["defects"] or "",
-                ]
-                for entry in reversed(entries)
-            ],
-            link_column=0,
-            numeric=(2, 3, 4, 5, 6),
+                ("最新スキャン", latest),
+                ("継続中ホスト", f"{len(active):,}"),
+                ("累計ホスト", f"{len(hosts):,}"),
+                ("最新日の初回検出", f"{len(today['first_seen_hosts']):,}"),
+                ("最新日の再出現", f"{len(today['returning_hosts']):,}"),
+                ("最新日の消失", f"{len(today['gone_hosts']):,}"),
+                ("記録日数", len(days)),
+            ]
         )
     )
+
+    labels = [day["date"] for day in days]
+    parts.append("<h2>推移</h2>")
+    parts.append(
+        chart_block(
+            "ホスト数（検出 / 初回 / 再出現 / 消失）",
+            labels,
+            [
+                {"label": "検出ホスト", "values": [day["hosts"] for day in days]},
+                {"label": "初回検出", "values": [len(day["first_seen_hosts"]) for day in days]},
+                {"label": "再出現", "values": [len(day["returning_hosts"]) for day in days]},
+                {"label": "消失", "values": [len(day["gone_hosts"]) for day in days]},
+            ],
+        )
+    )
+    parts.append(
+        chart_block(
+            "検出レコード数",
+            labels,
+            [{"label": "検出レコード", "values": [day["records"] for day in days]}],
+        )
+    )
+    if len(overview["probe_names"]) > 1:
+        parts.append(
+            chart_block(
+                "probe別ホスト数",
+                labels,
+                [
+                    {
+                        "label": name,
+                        "values": [len(day["probe_hosts"].get(name, ())) for day in days],
+                    }
+                    for name in overview["probe_names"]
+                ],
+            )
+        )
+    if len(days) < 2:
+        parts.append(
+            '<p class="empty">推移グラフは2日分以上のスキャンが揃うと表示されます。</p>'
+        )
+    elif days[0]["first_seen_hosts"]:
+        parts.append(
+            '<p class="sub">初回スキャン日は全ホストが初回検出になるため、'
+            "グラフの左端だけ値が突出します。</p>"
+        )
+
+    parts.append(f"<h2>最新日({esc(latest)})の新規ホスト</h2>")
+    if today["baseline"]:
+        parts.append(
+            '<p class="note">これが最初のスキャン日のため、全ホストを新規として扱っています。</p>'
+        )
+    parts.append(html_table(HOST_HEADERS, host_rows(tables["new_today"])))
+    parts.append(
+        copy_box(
+            [
+                ("new", f"新規 ({len(tables['new_today'])})",
+                 [h["host"] for h in tables["new_today"]]),
+                ("active", f"継続中の全ホスト ({len(active)})",
+                 [h["host"] for h in sorted(active, key=lambda x: x["sort_key"])]),
+                ("all", f"累計の全ホスト ({len(hosts)})",
+                 [h["host"] for h in sorted(hosts.values(), key=lambda x: x["sort_key"])]),
+            ],
+            rows=8,
+        )
+    )
+
+    if today["returning_hosts"]:
+        parts.append(f"<h2>最新日({esc(latest)})の再出現ホスト</h2>")
+        parts.append(
+            '<p class="sub">過去に観測され、前日は検出されず、再び現れたホスト。'
+            "停止と再開、または断続的な稼働を示す。</p>"
+        )
+        parts.append(
+            html_table(
+                HOST_HEADERS,
+                host_rows([hosts[h] for h in today["returning_hosts"]]),
+            )
+        )
+        parts.append(
+            copy_box(
+                [("returning", f"再出現 ({len(today['returning_hosts'])})",
+                  today["returning_hosts"])],
+                rows=6,
+            )
+        )
+
+    parts.append("<h2>消失したホスト</h2>")
+    parts.append(
+        '<p class="sub">最終検出日が最新スキャン日より前のホスト。停止、移設、'
+        "または検出条件から外れたことを示す。</p>"
+    )
+    parts.append(html_table(HOST_HEADERS, host_rows(tables["gone"][:top])))
+    if len(tables["gone"]) > top:
+        parts.append(f'<p class="empty">ほか{len(tables["gone"]) - top}件（hosts.csvに全件）</p>')
+
+    if len(days) > 1:
+        parts.append("<h2>継続と間欠</h2>")
+        parts.append('<p class="sub">観測日数が多いホストほど安定した基盤。</p>')
+        parts.append(html_table(HOST_HEADERS, host_rows(tables["persistent"])))
+        if tables["intermittent"]:
+            parts.append("<h3>間欠的に現れるホスト</h3>")
+            parts.append(
+                '<p class="sub">初回検出以降、観測できない日があるホスト。'
+                "稼働時間帯が限られる、または不安定な基盤。</p>"
+            )
+            parts.append(
+                html_table(
+                    HOST_HEADERS + ["観測日 / 期間"],
+                    [
+                        row + [f"{entry['days_observed']} / {entry['span']}日"]
+                        for row, entry in zip(
+                            host_rows(tables["intermittent"]), tables["intermittent"]
+                        )
+                    ],
+                )
+            )
+
+    parts.append("<h2>全期間の集中度</h2>")
+    network_hosts = tables["network_hosts"]
+    parts.append(
+        html_table(
+            ["ネットワーク", "累計ホスト", "継続中", "ホスト"],
+            [
+                [
+                    network,
+                    count,
+                    sum(1 for h in network_hosts[network] if hosts[h]["active"]),
+                    preview(sorted(network_hosts[network], key=lambda h: hosts[h]["sort_key"]), 12),
+                ]
+                for network, count in tables["networks"]
+            ],
+            numeric=(1, 2),
+        )
+    )
+
+    parts.append("<h3>ポート</h3>")
+    parts.append(
+        html_table(
+            ["ポート", "累計ホスト"], tables["ports"], numeric=(0, 1)
+        )
+    )
+
+    parts.append("<h2>日別</h2>")
+    meta = {entry["date"]: entry for entry in entries}
+    parts.append(
+        html_table_with_links(
+            ["日付", "probe", "検出", "ホスト", "初回", "再出現", "消失", "問題"],
+            [
+                [
+                    (f"{day['date']}/index.html", day["date"]),
+                    ", ".join(meta.get(day["date"], {}).get("probe_directories", [])) or "-",
+                    day["records"],
+                    day["hosts"],
+                    len(day["first_seen_hosts"]),
+                    len(day["returning_hosts"]),
+                    len(day["gone_hosts"]),
+                    meta.get(day["date"], {}).get("defects") or "",
+                ]
+                for day in reversed(days)
+            ],
+            link_column=0,
+            numeric=(2, 3, 4, 5, 6, 7),
+        )
+    )
+
+    parts.append("<h2>ホスト一覧</h2>")
+    parts.append(
+        '<p class="sub">初回検出が新しい順。表の上の入力欄でIP、ポート、probe、'
+        "状態を絞り込めます。</p>"
+    )
+    parts.append(filter_bar("host-table", "例: 143.92 / 8888 / valleyrat / 消失"))
+    listed = tables["by_first_seen"][:HOST_TABLE_LIMIT]
+    parts.append(table_with_id(html_table(HOST_HEADERS, host_rows(listed)), "host-table"))
+    if len(tables["by_first_seen"]) > HOST_TABLE_LIMIT:
+        parts.append(
+            f'<p class="empty">{len(tables["by_first_seen"]):,}件中'
+            f"{HOST_TABLE_LIMIT:,}件を表示。全件は hosts.csv を参照。</p>"
+        )
+    parts.append(
+        '<p class="note">分析用の書き出し: '
+        + html_link("hosts.csv", "hosts.csv")
+        + "（ホスト単位の初回・最終・観測日数・ポート） / "
+        + html_link("overview.json", "overview.json")
+        + "（日別の新規・消失を含む全期間データ）</p>"
+    )
+    parts.append(SITE_SCRIPT)
     return html_page("c2probe スキャン結果", "\n".join(parts), generated)
+
+
+def write_lines(path: Path, lines: Sequence) -> None:
+    """Write one item per line, always with a trailing newline."""
+    body = chr(10).join(str(line) for line in lines)
+    path.write_text(body + chr(10) if body else body, encoding='utf-8')
+
+
+def write_date_exports(date_directory: Path, summary: dict) -> None:
+    """Plain lists next to the JSONL, for blocklists and other tooling."""
+    rows = date_host_rows(summary)
+    write_lines(date_directory / "hosts.txt", [row["host"] for row in rows])
+    write_lines(
+        date_directory / "endpoints.txt",
+        [
+            format_endpoint(ipaddress.ip_address(row["host"]), port)
+            for row in rows
+            for port in row["ports"]
+        ],
+    )
+    with (date_directory / "hosts.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["host", "ports", "probes", "statuses", "records", "syn_rtt_ms"])
+        for row in rows:
+            writer.writerow(
+                [
+                    row["host"],
+                    " ".join(str(port) for port in row["ports"]),
+                    " ".join(row["probes"]),
+                    " ".join(row["statuses"]),
+                    row["records"],
+                    "" if row["syn_rtt_ms"] is None else row["syn_rtt_ms"],
+                ]
+            )
 
 
 def build_site(root: Path, dates: Sequence, top: int, minimum_cluster: int) -> int:
@@ -1170,6 +1977,7 @@ def build_site(root: Path, dates: Sequence, top: int, minimum_cluster: int) -> i
             date_directory / "index.html",
         )
         emit(render_markdown(summary, comparison, top), date_directory / "SUMMARY.md")
+        write_date_exports(date_directory, summary)
         emit(
             json.dumps(
                 json_ready({"summary": summary, "comparison": comparison}),
@@ -1178,7 +1986,9 @@ def build_site(root: Path, dates: Sequence, top: int, minimum_cluster: int) -> i
             ),
             date_directory / "SUMMARY.json",
         )
-    emit(render_html_index(entries, generated), root / "index.html")
+    overview = build_overview(dates)
+    emit(render_html_index(overview, entries, generated, top), root / "index.html")
+    write_exports(root, overview)
     # Without this, Pages hands the tree to Jekyll before publishing it.
     (root / ".nojekyll").write_text("", encoding="utf-8")
     return defects

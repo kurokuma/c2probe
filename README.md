@@ -540,15 +540,18 @@ JSONL/CSVは1レコード書くたびにflushするため、長時間scanの途�
 ```text
 result/
   .nojekyll              # Pagesのjekyll処理を無効化
-  index.html             # 日付一覧と推移グラフ
-  20260822/
+  index.html             # 全体ページ: 推移、新規/消失、ホスト索引
+  hosts.csv              # 全期間のホスト索引（初回・最終・観測日数・ポート）
+  overview.json          # 全期間データ（日別の初回/再出現/消失を含む）
+  20260823/
     index.html           # その日の詳細ページ
+    hosts.txt            # その日のIP一覧（1行1件）
+    endpoints.txt        # その日のIP:PORT一覧
+    hosts.csv            # その日のホスト単位集計
     SUMMARY.md           # GitHub上で読む用
     SUMMARY.json         # 機械処理用
     valleyrat/
-      ...
-    cobaltstrike/
-      ...
+      ctg_jp_137_220_144_0_20.jsonl
 ```
 
 `scripts/summarize_results.py`がこの構造を読み、集計とサイト生成を行います。標準
@@ -557,42 +560,76 @@ result/
 ### 日次の流れ
 
 ```bash
-./scripts/scan-block-list.sh ctg-server-block-list.json probes/valleyrat
-python scripts/summarize_results.py --site
-git add result
-git commit -m "scan $(date +%Y%m%d)"
-git push
+./scripts/scan-block-list.sh ctg-server-block-list.json probes/valleyrat 1-10000
 ```
 
-`--site`は全日付分のページ、`index.html`、`.nojekyll`を生成します。日付を指定した
-場合もindexは全日付を対象に作り直します（一覧と推移が古いままになるため）。
+```bash
+python3 scripts/summarize_results.py --site
+```
+
+```bash
+git add result && git commit -m "scan $(date +%Y%m%d)" && git push
+```
+
+`--site`は全日付分のページ、`index.html`、書き出しファイル、`.nojekyll`を生成します。
+日付を指定した場合も全体ページは全日付を対象に作り直します（一覧と推移が古いまま
+残らないようにするため）。
 
 GitHub Pagesの設定は Settings → Pages → Deploy from a branch → `main` / `/ (root)`
 です。公開URLは`https://<user>.github.io/<repo>/result/`になります。
 
-### その他の出力
+### 全体ページ
+
+全期間を横断した分析用のページです。
+
+- **推移**: 検出ホスト・初回検出・再出現・消失の折れ線、検出レコード数、probe別ホスト数
+- **初回検出**: その日に初めて観測されたホスト。日々の増分を追う起点
+- **再出現**: 過去に観測され、前日は消えていて、再び現れたホスト
+- **消失**: 最終検出日が最新スキャン日より前のホスト
+- **継続と間欠**: 観測日数の多い順、および初回〜最終の間に欠測があるホスト
+- **全期間の集中度**: /24（IPv6は/64）単位の累計ホストと継続中の数、ポート頻度
+- **ホスト一覧**: 初回検出が新しい順。絞り込み入力で IP・ポート・probe・状態を検索
+
+「新規」を前日差分と初回検出に分けています。前日差分だけでは、いったん消えて戻って
+きたホストも新規に数えられ、実際の増加を過大評価するためです。
+
+### 日別ページ
+
+- **アドレス一覧**: IPのみ / IP:PORT / ネットワーク / CSV を切り替えてコピーできます。
+  ブロックリストや別ツールへの受け渡し用です。同じ内容を`hosts.txt`、
+  `endpoints.txt`、`hosts.csv`としても書き出します
+- **ホスト**: その日のホストをポート、probe、status、RTTつきで一覧。絞り込み可
+- **前日差分**: 新規・消失ホストの件数と、コピーできる一覧
+- **probeごとの詳細**: レンジ別検出数、集中度、ポート、ポート構成が一致するホスト群、
+  probe固有フィールド、品質チェック
+
+### 分析用の書き出し
+
+| ファイル | 単位 | 主な列 |
+|---|---|---|
+| `result/hosts.csv` | ホスト（全期間） | host, network, first_seen, last_seen, days_observed, coverage, active, intermittent, probes, ports, statuses |
+| `result/overview.json` | 日別 + ホスト | 日別の初回/再出現/消失リスト、ホスト索引 |
+| `result/<日付>/hosts.csv` | ホスト（その日） | host, ports, probes, statuses, records, syn_rtt_ms |
+| `result/<日付>/hosts.txt` | IP | 1行1件 |
+| `result/<日付>/endpoints.txt` | IP:PORT | 1行1件 |
+| `result/<日付>/SUMMARY.json` | probe別 | 集計結果とホスト明細 |
+
+```bash
+# 30日以上継続して観測されているホスト
+awk -F, 'NR>1 && $5>=30 {print $1}' result/hosts.csv
+```
+
+### その他の実行方法
 
 ```bash
 python scripts/summarize_results.py                  # 最新の日付をstdoutへ
-python scripts/summarize_results.py --date 20260822
+python scripts/summarize_results.py --date 20260823
 python scripts/summarize_results.py --write          # SUMMARY.mdだけを生成
 python scripts/summarize_results.py --all --write    # 全日付のSUMMARY.md
 python scripts/summarize_results.py --format json    # 機械処理向け
-python scripts/summarize_results.py --format html    # 単一ページだけを標準出力へ
 python scripts/summarize_results.py --compare-previous
 python scripts/summarize_results.py --strict         # 整合性の問題があれば終了コード1
 ```
-
-### 出力される内容
-
-- probeディレクトリごとの検出数、ホスト数、confidence、status内訳、走査時間帯
-- ファイル（=スキャンレンジ）別の検出数と、検出0件だったレンジ。原本JSONLへのリンク付き
-- /24（IPv6は/64）単位の集中度とポート頻度
-- ポート構成が完全一致するホスト群。同一テンプレートで展開された疑いを見つける
-- probe固有フィールドの値分布
-- 複数probeで同時に検出されたホスト
-- 前日との差分（新規・消失したホストと`IP:PORT`）と、日別ホスト数の推移グラフ
-- 整合性チェック（JSON破損、行途中での切断、宣言CIDRとの不一致、`IP:PORT`重複）
 
 ファイル名末尾の`_A_B_C_D_P`はレンジ`A.B.C.D/P`として解釈し、そのレンジ外のレコードが
 混ざっていないか検査します。この規則に合わない名前のファイルはCIDR検査だけを省略します。
@@ -601,9 +638,15 @@ python scripts/summarize_results.py --strict         # 整合性の問題があ�
 返します。日次ジョブでpushまで止めたくない場合は、生成とチェックを分けてください。
 
 ```bash
-python scripts/summarize_results.py --site
 python scripts/summarize_results.py --strict > /dev/null || echo "整合性の問題あり"
 ```
+
+### 公開範囲について
+
+`result/`配下のJSONLは`.gitignore`の除外対象から明示的に外しています（`!/result/**`）。
+公開リポジトリで運用する場合、調査対象IPとポートがそのまま公開されます。意図しない
+公開を避けるにはprivate repositoryか、Pagesのアクセス制限を利用してください。生成した
+HTMLには`noindex`を付けていますが、これは検索避けであってアクセス制限ではありません。
 
 ## 中断とシャットダウン
 

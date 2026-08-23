@@ -75,3 +75,4 @@ Desktop.ini
 spec.md
 result/**/SUMMARY.json
 result/.nojekyll
+result/overview.json
