@@ -1,0 +1,602 @@
+[
+    {
+        "name": "ctg_sg_134_122_128_0_17",
+        "cidr": "134.122.128.0/17",
+        "region": "Singapore",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_sg_137_220_128_0_17",
+        "cidr": "137.220.128.0/17",
+        "region": "Singapore",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_112_213_96_0_19",
+        "cidr": "112.213.96.0/19",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_121_127_224_0_19",
+        "cidr": "121.127.224.0/19",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_jp_134_122_160_0_19",
+        "cidr": "134.122.160.0/19",
+        "region": "Japan",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_134_122_192_0_19",
+        "cidr": "134.122.192.0/19",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_134_122_224_0_19",
+        "cidr": "134.122.224.0/19",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_117_18_0_0_20",
+        "cidr": "117.18.0.0/20",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_jp_134_122_144_0_20",
+        "cidr": "134.122.144.0/20",
+        "region": "Japan",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_210_56_48_0_20",
+        "cidr": "210.56.48.0/20",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_121_54_168_0_21",
+        "cidr": "121.54.168.0/21",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_jp_134_122_136_0_21",
+        "cidr": "134.122.136.0/21",
+        "region": "Japan",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_202_146_216_0_21",
+        "cidr": "202.146.216.0/21",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_jp_27_124_36_0_22",
+        "cidr": "27.124.36.0/22",
+        "region": "Japan",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_43_240_36_0_22",
+        "cidr": "43.240.36.0/22",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_43_243_72_0_22",
+        "cidr": "43.243.72.0/22",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_103_41_64_0_22",
+        "cidr": "103.41.64.0/22",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_103_230_240_0_22",
+        "cidr": "103.230.240.0/22",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_103_254_108_0_22",
+        "cidr": "103.254.108.0/22",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_jp_137_220_252_0_22",
+        "cidr": "137.220.252.0/22",
+        "region": "Japan",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_jp_202_79_164_0_22",
+        "cidr": "202.79.164.0/22",
+        "region": "Japan",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_112_213_116_0_23",
+        "cidr": "112.213.116.0/23",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_118_107_4_0_23",
+        "cidr": "118.107.4.0/23",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_jp_134_122_174_0_23",
+        "cidr": "134.122.174.0/23",
+        "region": "Japan",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_jp_202_79_162_0_23",
+        "cidr": "202.79.162.0/23",
+        "region": "Japan",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_jp_202_79_164_0_23",
+        "cidr": "202.79.164.0/23",
+        "region": "Japan",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_1_32_205_0_24",
+        "cidr": "1.32.205.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_kr_1_32_216_0_24",
+        "cidr": "1.32.216.0/24",
+        "region": "South Korea",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_1_32_218_0_24",
+        "cidr": "1.32.218.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_jp_1_32_228_0_24",
+        "cidr": "1.32.228.0/24",
+        "region": "Japan",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_jp_1_32_229_0_24",
+        "cidr": "1.32.229.0/24",
+        "region": "Japan",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_us_1_32_237_0_24",
+        "cidr": "1.32.237.0/24",
+        "region": "United States",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_1_32_246_0_24",
+        "cidr": "1.32.246.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_1_32_247_0_24",
+        "cidr": "1.32.247.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_1_32_248_0_24",
+        "cidr": "1.32.248.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_1_32_249_0_24",
+        "cidr": "1.32.249.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_1_32_250_0_24",
+        "cidr": "1.32.250.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_kh_1_32_252_0_24",
+        "cidr": "1.32.252.0/24",
+        "region": "Cambodia",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_1_32_253_0_24",
+        "cidr": "1.32.253.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_1_32_254_0_24",
+        "cidr": "1.32.254.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_1_32_255_0_24",
+        "cidr": "1.32.255.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_14_128_32_0_24",
+        "cidr": "14.128.32.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_14_128_33_0_24",
+        "cidr": "14.128.33.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_14_128_34_0_24",
+        "cidr": "14.128.34.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_14_128_35_0_24",
+        "cidr": "14.128.35.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_14_128_36_0_24",
+        "cidr": "14.128.36.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_14_128_37_0_24",
+        "cidr": "14.128.37.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_14_128_38_0_24",
+        "cidr": "14.128.38.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_14_128_39_0_24",
+        "cidr": "14.128.39.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_14_128_40_0_24",
+        "cidr": "14.128.40.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_14_128_41_0_24",
+        "cidr": "14.128.41.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_14_128_42_0_24",
+        "cidr": "14.128.42.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_14_128_43_0_24",
+        "cidr": "14.128.43.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_14_128_44_0_24",
+        "cidr": "14.128.44.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_14_128_45_0_24",
+        "cidr": "14.128.45.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_14_128_46_0_24",
+        "cidr": "14.128.46.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_14_128_47_0_24",
+        "cidr": "14.128.47.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_kr_14_128_48_0_24",
+        "cidr": "14.128.48.0/24",
+        "region": "South Korea",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_kr_14_128_49_0_24",
+        "cidr": "14.128.49.0/24",
+        "region": "South Korea",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_kr_14_128_50_0_24",
+        "cidr": "14.128.50.0/24",
+        "region": "South Korea",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_kr_14_128_51_0_24",
+        "cidr": "14.128.51.0/24",
+        "region": "South Korea",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_kr_14_128_52_0_24",
+        "cidr": "14.128.52.0/24",
+        "region": "South Korea",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_kr_14_128_53_0_24",
+        "cidr": "14.128.53.0/24",
+        "region": "South Korea",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_kr_14_128_54_0_24",
+        "cidr": "14.128.54.0/24",
+        "region": "South Korea",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_kr_14_128_55_0_24",
+        "cidr": "14.128.55.0/24",
+        "region": "South Korea",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_jp_14_128_57_0_24",
+        "cidr": "14.128.57.0/24",
+        "region": "Japan",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_14_128_58_0_24",
+        "cidr": "14.128.58.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_jp_14_128_59_0_24",
+        "cidr": "14.128.59.0/24",
+        "region": "Japan",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_14_128_60_0_24",
+        "cidr": "14.128.60.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_14_128_63_0_24",
+        "cidr": "14.128.63.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_50_54_0_24",
+        "cidr": "27.50.54.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_jp_27_50_55_0_24",
+        "cidr": "27.50.55.0/24",
+        "region": "Japan",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_jp_27_50_57_0_24",
+        "cidr": "27.50.57.0/24",
+        "region": "Japan",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_jp_27_50_58_0_24",
+        "cidr": "27.50.58.0/24",
+        "region": "Japan",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_50_59_0_24",
+        "cidr": "27.50.59.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_jp_27_50_60_0_24",
+        "cidr": "27.50.60.0/24",
+        "region": "Japan",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_50_62_0_24",
+        "cidr": "27.50.62.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_50_63_0_24",
+        "cidr": "27.50.63.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_2_0_24",
+        "cidr": "27.124.2.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_3_0_24",
+        "cidr": "27.124.3.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_4_0_24",
+        "cidr": "27.124.4.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_5_0_24",
+        "cidr": "27.124.5.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_6_0_24",
+        "cidr": "27.124.6.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_7_0_24",
+        "cidr": "27.124.7.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_9_0_24",
+        "cidr": "27.124.9.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_10_0_24",
+        "cidr": "27.124.10.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_us_27_124_11_0_24",
+        "cidr": "27.124.11.0/24",
+        "region": "United States",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_12_0_24",
+        "cidr": "27.124.12.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_17_0_24",
+        "cidr": "27.124.17.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_18_0_24",
+        "cidr": "27.124.18.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_20_0_24",
+        "cidr": "27.124.20.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_21_0_24",
+        "cidr": "27.124.21.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_22_0_24",
+        "cidr": "27.124.22.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_23_0_24",
+        "cidr": "27.124.23.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_24_0_24",
+        "cidr": "27.124.24.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_25_0_24",
+        "cidr": "27.124.25.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_26_0_24",
+        "cidr": "27.124.26.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_27_0_24",
+        "cidr": "27.124.27.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_28_0_24",
+        "cidr": "27.124.28.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
+        "name": "ctg_hk_27_124_29_0_24",
+        "cidr": "27.124.29.0/24",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    }
+]
