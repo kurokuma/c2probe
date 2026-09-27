@@ -174,7 +174,9 @@ async fn n520_cluster_observation_is_probable_and_records_certificate() {
     let compiled = probe_from("probes/observations", "tls-server-first-n520.yaml").await;
     let result = execute(addr.ip(), addr.port(), compiled.as_ref()).await;
     server.await.unwrap();
-    assert!(result.confirmed);
+    // Matches the upstream contract: probable_c2 true, c2_confirmed false.
+    assert!(result.probable);
+    assert!(!result.confirmed);
     assert_eq!(result.status, "n520_server_first_handshake_match");
     assert_eq!(result.confidence, 0.90);
     assert_eq!(result.fields["stored_crc"], result.fields["calculated_crc"]);

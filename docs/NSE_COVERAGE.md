@@ -1,8 +1,9 @@
 # upstream NSE全件対応表
 
-対象は2026-08-17に取得した
+対象は
 [`analysis-framework/nmap/scripts`](https://github.com/proshiba/AI-security-analysis/tree/main/analysis-framework/nmap/scripts)
-の12ファイルです。NSEは任意Luaなので機械的な逐語変換は行わず、通信、境界値、判定確度、
+の12ファイルです。2026-08-17に初回取得し、2026-09-28に再取得して全件のSHA-256を照合しました。
+差分は`c2-transport-observe.nse`の1件のみです（後述）。NSEは任意Luaなので機械的な逐語変換は行わず、通信、境界値、判定確度、
 scopeをレビューしてc2probeの制限付きDSLまたは既存native機能へ対応付けました。
 
 ## 対応結果
