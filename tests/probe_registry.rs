@@ -34,7 +34,7 @@ async fn every_maintained_yaml_compiles_with_review_parameters() {
     .await
     .unwrap();
 
-    assert_eq!(probes.len(), 25);
+    assert_eq!(probes.len(), 26);
     let mut names = probes
         .iter()
         .map(|probe| probe.name.as_ref())

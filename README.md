@@ -27,7 +27,7 @@ Raw SYNには`CAP_NET_RAW`またはroot権限が必要です。常時rootで実�
 ├── .gitignore
 ├── Makefile
 ├── ctg-server-block-list.json # block list入力例
-├── probes/                  # family別の25 application probe YAML
+├── probes/                  # family別の26 application probe YAML
 ├── result/                  # 日次スキャン結果とGitHub Pages用サイト
 ├── scripts/
 │   ├── build-linux.sh       # Linux上でLinux版を作成

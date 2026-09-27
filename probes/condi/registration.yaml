@@ -1,0 +1,30 @@
+dsl_version: 1
+name: condi-mirai-registration-response
+metadata:
+  family: condi
+  protocol: mirai_condi_registration
+  plan_order: 310
+  description: Send the documented Condi default-id registration frame and inspect only the first three response bytes.
+transport: { type: tcp, connect_timeout_ms: 1000, read_timeout_ms: 1500 }
+steps:
+  - send: { hex: "33 66 99 01 63" }
+  - recv_exact: { bytes: 3, save_as: response_code }
+  - match:
+      any:
+        - bytes_eq: { source: response_code, offset: 0, hex: "99 66 33" }
+        - bytes_eq: { source: response_code, offset: 0, hex: "99 66 66" }
+        - bytes_eq: { source: response_code, offset: 0, hex: "33 66 66" }
+        - bytes_eq: { source: response_code, offset: 0, hex: "33 66 33" }
+        - bytes_eq: { source: response_code, offset: 0, hex: "66 66 99" }
+result:
+  family: condi
+  protocol: mirai_condi_registration
+  classification: probable
+  confidence: 0.70
+  unmatched_confidence: 0.0
+  status: condi_compatible_registration_response
+  unmatched_status: condi_registration_response_mismatch
+  fields:
+    response_code: "$hex:response_code"
+    synthetic_id_sent: c
+    followup_command_sent: false
