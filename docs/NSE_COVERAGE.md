@@ -12,7 +12,7 @@ scopeをレビューしてc2probeの制限付きDSLまたは既存native機能�
 |---|---|---|---|
 | `agenttesla-ftp-c2.nse` | `probes/agenttesla/ftp-banner.yaml` | observation | 匿名の`220` bannerのみ。資格情報を伴う任意FTP loginは意図的に実装しない |
 | `c2-dns-observe.nse` | target list作成前のDNS解決 | native observation | NSE自体もC2判定を行わない。c2probeはIP/CIDR scannerなので、解決したIPを`-t`/`-i`へ渡す |
-| `c2-transport-observe.nse` | `probes/observations/*.yaml`とdiscovery | observation | server-first、TLS certificate、HTTP、HTTPSは4 YAML。tcp-openは`--scan-mode discovery --output-mode open` |
+| `c2-transport-observe.nse` | `probes/observations/*.yaml`とdiscovery | observation / probable | server-first、TLS certificate、HTTP、HTTPS、N520受動観測は5 YAML。tcp-openは`--scan-mode discovery --output-mode open` |
 | `darkcomet-c2.nse` | `probes/darkcomet/{raw,ascii-hex}.yaml` | confirmed | reviewed RC4鍵を`darkcomet.key_base64`で明示する |
 | `dotnet-rat-c2.nse` | `probes/dotnet-rat/{asyncrat,venomrat}.yaml` | confirmed | byte-exact Ping、length frame、gzip、MessagePack key/valueを検証 |
 | `purerat-c2.nse` | `probes/purerat/prelude-tls-*.yaml` | observation / confirmed | `04000000`後に同一streamをTLS化。証明書一致ruleは期待SHA-256が必須 |
@@ -44,15 +44,43 @@ YAMLまたはYAML群へ変換されています。
 パラメータ必須YAMLを`--probe-dir`で読み、値がない場合、そのYAMLだけを警告付きでskipします。
 `--probe`でファイルを直接指定した場合は、設定漏れとして起動を失敗させます。
 
+## upstream変更履歴
+
+### 2026-09-14 `c2-transport-observe.nse` — 受動TLSクラスタ観測（commit `b1ae80f3`）
+
+TLS modeへ`c2-transport.observe-n520-server-first=true`が追加されました。clientから
+application dataを送らずserver-first frameを受信し、44 byteならValleyRAT N520の
+magic/CRCを検証します。一致時は`probable_c2=true`、`confidence=0.90`で、汎用観測のため
+`c2_confirmed`はfalseのままです。あわせて`certificate_sha1`、`response_sha256`、
+`response_printable_ascii`が結果へ追加されました。
+
+| upstream要素 | c2probe対応 |
+|---|---|
+| N520 44-byte frameのmagic/CRC検証 | `probes/observations/tls-server-first-n520.yaml`（`classification: probable`、confidence 0.90） |
+| `certificate_sha256` | 同YAMLの`peer_certificate`で記録 |
+| `tls_server_first_timeout_marker` | 変換対象外。下記「既知の表現差」を参照 |
+| `certificate_sha1` | 未対応。Rust側にSHA-1の証明書ダイジェストがない |
+| `response_sha256` | 未対応。DSLの`transform`にSHA-256がない |
+| `response_printable_ascii` | 未対応。`bytes_regex`はmatch条件専用で、独立したbool fieldを出力できない |
+
+検証アルゴリズム（`mixed = ((session_id >> 16) ^ (session_id & 0xffff)) | 0xa5a50000`、
+`expected_magic = session_id ^ mixed`、offset 40のCRC32）はupstreamと同一で、既存の
+`probes/valleyrat/n520.yaml`とも一致します。両者はclassificationだけが異なります
+（`valleyrat/n520.yaml`はprofile登録済みhost向けのconfirmed判定、observation版は
+profile未登録hostのクラスタリング向けのprobable判定）。同一portへ2回接続しないよう、
+observation版は`probes/observations/`に置き、`--probe-dir probes/valleyrat`では
+読み込まれません。
+
 ## upstream snapshot
 
-取得日: 2026-08-17。SHA-256は変換対象を固定し、upstream変更を黙って同等扱いしないための値です。
+初回取得日: 2026-08-17。再照合日: 2026-09-28。
+SHA-256は変換対象を固定し、upstream変更を黙って同等扱いしないための値です。
 
 | file | SHA-256 |
 |---|---|
 | `agenttesla-ftp-c2.nse` | `fff1497f06af248b0db7ecf8e8ebda9c39e209d7389904385b4621f147891052` |
 | `c2-dns-observe.nse` | `8d6769949e1a2884a17d39452506ae54ce2e2db4c53899374b3dcd003597fadd` |
-| `c2-transport-observe.nse` | `18e6470f51bd93722fdc71754b7096cddea51f723fff56d62b89441064065585` |
+| `c2-transport-observe.nse` | `0f02a4ff0c33344ed31df2f672f92e8b2096832068de50bfe525932bb0a2524e` |
 | `darkcomet-c2.nse` | `700cc85fbe5cfc80cfce7c6993970ae353d5aecca82fe4bfe92b08ce624f0cc3` |
 | `dotnet-rat-c2.nse` | `35d408ababcb4fc28fcd819e185ccbe3fb71b0e7d869451325126b93aeb2382c` |
 | `purerat-c2.nse` | `40f28942adc705c67d4ae214f970e4e50651c8b74548087c3ba2925652d2fecf` |
@@ -71,6 +99,11 @@ YAMLまたはYAML群へ変換されています。
   任意のreview済み経路を調べる場合はYAMLを複製してpath/Hostを明示します。
 - Route profileのloopback test vectorsはproduction scanner ruleに含めず、local test用途としています。
 - AgentTeslaの認証optionは、第三者credential送信を避けるためbanner observationへ限定しています。
+- `tls_server_first_timeout_marker`はYAML化していません。upstreamの`"TIMEOUT"`比較は
+  Nmap Lua socket APIがタイムアウト時に返すエラー文字列の判定であり、ネットワーク上の
+  バイト列ではありません（`socket:receive_bytes`のstatusを捨ててresponse側を見ています）。
+  同等の事象はc2probeでは`read_timeout` statusとして既に表現されます。実在しない
+  バイト列を照合するYAMLを作ると、その照合が成立しないことを検出と誤認する余地が残ります。
 - c2probeのrustls backendはTLS 1.2/1.3です。PureRAT direct profileに記録された期待値はTLS 1.0ですが、
   upstream NSE自身もTLS 1.0を強制していません。対象がTLS 1.0だけを許す場合、現行backendでは
   handshakeできず`tls_error`になります。証明書ruleの静的変換完了とlegacy TLS runtime受入は別です。
