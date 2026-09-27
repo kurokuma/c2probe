@@ -22,8 +22,12 @@ use tokio_rustls::{
 };
 
 async fn probe(name: &str) -> std::sync::Arc<c2probe::dsl::CompiledProbe> {
+    probe_from("probes/valleyrat", name).await
+}
+
+async fn probe_from(directory: &str, name: &str) -> std::sync::Arc<c2probe::dsl::CompiledProbe> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("probes/valleyrat")
+        .join(directory)
         .join(name);
     dsl::load_probes(
         &[path],
@@ -34,6 +38,36 @@ async fn probe(name: &str) -> std::sync::Arc<c2probe::dsl::CompiledProbe> {
     .await
     .unwrap()
     .remove(0)
+}
+
+/// TLS listener that sends one valid ValleyRAT N520 server-first frame.
+///
+/// Both the confirmed probe and the passive cluster observation check the same
+/// frame, so they share one mock rather than repeating the magic/CRC derivation.
+async fn spawn_n520_mock() -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
+    let generated = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+    let key = PrivateKeyDer::Pkcs8(generated.signing_key.serialize_der().into());
+    let config = ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(vec![generated.cert.der().clone()], key)
+        .unwrap();
+    let acceptor = TlsAcceptor::from(std::sync::Arc::new(config));
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let task = tokio::spawn(async move {
+        let (socket, _) = listener.accept().await.unwrap();
+        let mut tls = acceptor.accept(socket).await.unwrap();
+        let session = 0x1234_5678u32;
+        let mixed = ((session >> 16) ^ (session & 0xffff)) | 0xa5a5_0000;
+        let magic = session ^ mixed;
+        let mut frame = [0u8; 44];
+        frame[..4].copy_from_slice(&session.to_le_bytes());
+        frame[4..8].copy_from_slice(&magic.to_le_bytes());
+        let crc = crc32fast::hash(&frame[..40]);
+        frame[40..].copy_from_slice(&crc.to_le_bytes());
+        tls.write_all(&frame).await.unwrap();
+    });
+    (addr, task)
 }
 
 #[tokio::test]
@@ -122,34 +156,31 @@ async fn winos_rejects_a_reflected_request() {
 
 #[tokio::test]
 async fn n520_matches_server_first_magic_and_crc() {
-    let generated = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
-    let key = PrivateKeyDer::Pkcs8(generated.signing_key.serialize_der().into());
-    let config = ServerConfig::builder()
-        .with_no_client_auth()
-        .with_single_cert(vec![generated.cert.der().clone()], key)
-        .unwrap();
-    let acceptor = TlsAcceptor::from(std::sync::Arc::new(config));
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
-    let server = tokio::spawn(async move {
-        let (socket, _) = listener.accept().await.unwrap();
-        let mut tls = acceptor.accept(socket).await.unwrap();
-        let session = 0x1234_5678u32;
-        let mixed = ((session >> 16) ^ (session & 0xffff)) | 0xa5a5_0000;
-        let magic = session ^ mixed;
-        let mut frame = [0u8; 44];
-        frame[..4].copy_from_slice(&session.to_le_bytes());
-        frame[4..8].copy_from_slice(&magic.to_le_bytes());
-        let crc = crc32fast::hash(&frame[..40]);
-        frame[40..].copy_from_slice(&crc.to_le_bytes());
-        tls.write_all(&frame).await.unwrap();
-    });
+    let (addr, server) = spawn_n520_mock().await;
     let compiled = probe("n520.yaml").await;
     let result = execute(addr.ip(), addr.port(), compiled.as_ref()).await;
     server.await.unwrap();
     assert!(result.confirmed);
     assert_eq!(result.status, "n520_server_first_handshake_match");
     assert_eq!(result.fields["stored_crc"], result.fields["calculated_crc"]);
+}
+
+/// Upstream `c2-transport-observe.nse` gained an N520 server-first check on
+/// 2026-09-14. It reports probable_c2 with confidence 0.90 rather than confirming,
+/// and records the leaf certificate so unprofiled hosts can be clustered.
+#[tokio::test]
+async fn n520_cluster_observation_is_probable_and_records_certificate() {
+    let (addr, server) = spawn_n520_mock().await;
+    let compiled = probe_from("probes/observations", "tls-server-first-n520.yaml").await;
+    let result = execute(addr.ip(), addr.port(), compiled.as_ref()).await;
+    server.await.unwrap();
+    assert!(result.confirmed);
+    assert_eq!(result.status, "n520_server_first_handshake_match");
+    assert_eq!(result.confidence, 0.90);
+    assert_eq!(result.fields["stored_crc"], result.fields["calculated_crc"]);
+    let certificate = result.fields["certificate_sha256"].as_str().unwrap();
+    assert_eq!(certificate.len(), 64, "leaf certificate SHA-256 as hex");
+    assert!(certificate.chars().all(|c| c.is_ascii_hexdigit()));
 }
 
 #[tokio::test]
