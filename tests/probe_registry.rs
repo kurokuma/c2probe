@@ -34,7 +34,7 @@ async fn every_maintained_yaml_compiles_with_review_parameters() {
     .await
     .unwrap();
 
-    assert_eq!(probes.len(), 24);
+    assert_eq!(probes.len(), 25);
     let mut names = probes
         .iter()
         .map(|probe| probe.name.as_ref())
@@ -60,6 +60,7 @@ fn upstream_inventory_has_an_explicit_c2probe_mapping() {
                 "probes/observations/tls-certificate.yaml",
                 "probes/observations/http-get.yaml",
                 "probes/observations/https-get.yaml",
+                "probes/observations/tls-server-first-n520.yaml",
             ],
         ),
         (
