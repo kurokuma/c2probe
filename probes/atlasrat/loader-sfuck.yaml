@@ -1,0 +1,40 @@
+# Sources:
+# https://www.netresec.com/?page=Blog&month=2026-10&post=Detecting-AtlasRAT-C2
+# https://hexastrike.com/resources/blog/threat-intelligence/trust-the-tunnel-get-the-trojan-silver-fox-delivers-atlas-rat-via-weaponized-vpn-installers/
+# Sample-specific legacy loader response, not a universal AtlasRAT signature.
+# Reads only the first 7174 bytes of the delivered shellcode; never executes it.
+# BFuck and encrypted backdoor variants are not covered by this profile.
+dsl_version: 1
+name: atlasrat-legacy-sfuck-loader-response
+metadata:
+  family: atlasrat
+  protocol: atlasrat_legacy_loader_tcp
+  plan_order: 320
+  description: Send the documented SFuck check-in and match the known reflective-loader prefix and embedded PE offset.
+transport: { type: tcp, connect_timeout_ms: 1000, read_timeout_ms: 2000 }
+steps:
+  - send: { hex: "53 46 75 63 6b 00 00 00" }
+  - recv_exact: { bytes: 7174, save_as: response }
+  - match:
+      all:
+        - bytes_eq: { source: response, offset: 0, hex: "48 89 5c 24 10" }
+        - bytes_eq: { source: response, offset: 7172, hex: "4d 5a" }
+result:
+  family: atlasrat
+  protocol: atlasrat_legacy_loader_tcp
+  classification: probable
+  confidence: 0.65
+  unmatched_confidence: 0.0
+  status: atlasrat_legacy_loader_compatible_response
+  unmatched_status: atlasrat_legacy_loader_response_mismatch
+  fields:
+    variant: legacy_sfuck
+    checkin_hex: "534675636b000000"
+    response_bytes_inspected: 7174
+    embedded_pe_offset: 7172
+    sample_specific_layout: true
+    bfuck_variant_covered: false
+    mismatch_excludes_c2: false
+    victim_metadata_sent: false
+    followup_command_sent: false
+    payload_executed: false
