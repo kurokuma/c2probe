@@ -1,21 +1,47 @@
+# Source: https://github.com/proshiba/AI-security-analysis/commit/de40d143f8d213126ac0b337c0ee0ab038ae0322
+# e554 proves endpoints/certificate, but does not prove this build's wire prelude.
+# Numeric pin must be independently reviewed as tirakian.com; no DNS is performed.
 parameters:
-  purerat.expected_cert: { type: hex, required: true, min_length: 64, max_length: 64 }
+  purerat.tirakian_ip: { type: ip, required: true }
+  purerat.acknowledge_profile:
+    type: token
+    required: true
+    allowed_values: [purerat-e554-tirakian-legacy-prelude]
 dsl_version: 1
 name: purerat-prelude-tls-certificate-match
 metadata:
   family: purehvnc
-  protocol: purerat_prelude_tls12
+  protocol: purerat_legacy_prelude_hypothesis
   plan_order: 201
-  description: Match a supplied reviewed leaf certificate after the PureRAT plaintext prelude.
+  description: Reviewed e554 endpoint and certificate with an unverified legacy-prelude compatibility hypothesis.
+scope: { ips: ["${purerat.tirakian_ip}"], ports: [56001, 56002, 56003] }
 transport: { type: starttls, prelude_hex: "04 00 00 00", connect_timeout_ms: 1000, read_timeout_ms: 1000, insecure_tls: true }
 steps:
   - peer_certificate: { save_as: certificate_sha256 }
-  - match: { bytes_eq: { source: certificate_sha256, offset: 0, hex: "${purerat.expected_cert}" } }
+  - match: { bytes_eq: { source: certificate_sha256, offset: 0, hex: "67260a713ab105197098882f6d126f89fe4f48df8013f8bba1d2c9307b17410b" } }
 result:
   family: purehvnc
-  protocol: purerat_prelude_tls12
-  confidence: 0.95
-  unmatched_confidence: 0.62
-  status: purerat_prelude_tls_certificate_match
-  unmatched_status: purerat_prelude_tls_observed
-  fields: { variant: managed_purerat, prelude_hex: "04000000", certificate_sha256: "$hex:certificate_sha256", certificate_mismatch_excludes_c2: false, victim_metadata_sent: false }
+  protocol: purerat_legacy_prelude_hypothesis
+  classification: probable
+  confidence: 0.60
+  unmatched_confidence: 0.0
+  status: purerat_legacy_prelude_hypothesis_certificate_match_tls_version_unverified
+  unmatched_status: purerat_legacy_prelude_certificate_mismatch_inconclusive
+  fields:
+    variant: managed_purerat_4_4_1_legacy_prelude_hypothesis
+    reviewed_host: tirakian.com
+    reviewed_ip: "${purerat.tirakian_ip}"
+    compatibility_hypothesis: true
+    wire_prelude_verified_for_sample: false
+    prelude_hex: "04000000"
+    certificate_sha256: "$hex:certificate_sha256"
+    certificate_mismatch_excludes_c2: false
+    tls_version_expected: TLSv1.2
+    tls_version_enforced: false
+    application_data_sent: true
+    plaintext_prelude_sent: true
+    sent_bytes: 4
+    victim_metadata_sent: false
+    registration_attempted: false
+    task_poll_attempted: false
+    payload_download_attempted: false

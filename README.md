@@ -684,8 +684,8 @@ plaintext prelude後の同一stream TLS upgrade、bounded frame/HTTP受信、RC4
 `transport.type: tls`は`insecure_tls: true`を必須とします。このビルドは証明書検証を行わない
 ため、検証しないことをprobe側で明示させています。
 
-同梱probeは[upstream scripts全12本](https://github.com/proshiba/AI-security-analysis/tree/main/analysis-framework/nmap/scripts)
-をレビューし、application通信を持つものを24 YAMLへ展開したものです。DNS解決だけ、および
+同梱probeは[upstream scripts](https://github.com/proshiba/AI-security-analysis/tree/main/analysis-framework/nmap/scripts)
+の初期12本と追加PureLogsをレビューし、application通信を持つものをYAMLへ展開しています。DNS解決だけ、および
 tcp-open観測だけのNSEは、偽のC2判定YAMLを作らずc2probe native機能へ対応付けています。
 全件の対応、SHA-256、表現差は[docs/NSE_COVERAGE.md](docs/NSE_COVERAGE.md)にあります。
 
@@ -693,6 +693,11 @@ tcp-open観測だけのNSEは、偽のC2判定YAMLを作らずc2probe native機�
 confirmedだけ、`detected`はconfirmedとprobableを出力します。parameter付きYAMLを
 directoryから読んだ際に値がなければ、そのruleだけ警告付きでskipします。明示した
 `--probe`のparameter不足は設定ミスとして起動エラーになります。
+
+PureLogs / PureRAT は[更新履歴](docs/NSE_COVERAGE.md)と各familyのREADMEを参照してください。
+これらの一致結果を出力するには`--output-mode detected`を使用します。
+固定profile用parameterの`allowed_values`は、列挙値以外をcompile時に拒否します。
+この機能を含むYAMLを使う際は、更新後の本体を再ビルドしてください。
 
 Winos probeは固定済みpacketを埋め込まず、`compute`でcommandを算出し、`pack`で各整数を
 指定endiannessのbufferへ変換し、`concat`したbufferを`send.source`で送信します。

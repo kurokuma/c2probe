@@ -1,0 +1,63 @@
+# Source: https://github.com/proshiba/AI-security-analysis/blob/de40d143f8d213126ac0b337c0ee0ab038ae0322/analysis-framework/nmap/scripts/purelogs-c2.nse
+# Fixed endpoint and certificate gate BEFORE sending one anonymous GET /ping.
+parameters:
+  purelogs.acknowledge_profile:
+    type: token
+    required: true
+    allowed_values: [purelogs-0f2abaab-logs-uvexio-8443-ping-v1]
+dsl_version: 1
+name: purelogs-0f2abaab-https-ping
+metadata:
+  family: purelogs
+  protocol: purelogs_https_ping
+  plan_order: 210
+  description: Reviewed endpoint and certificate-gated GET /ping; HTTP 200 with exactly OK is probable only.
+scope: { ips: ["193.26.115.118"], ports: [8443] }
+transport: { type: tls, connect_timeout_ms: 1000, read_timeout_ms: 3000, insecure_tls: true }
+steps:
+  - peer_certificate: { save_as: certificate_sha256 }
+  - reject_if:
+      not: { bytes_eq: { source: certificate_sha256, offset: 0, hex: "9e254cab8c68944cea18a3ac5523fe491eb14f9447b352dca33729b64eaeeac3" } }
+      status: purelogs_certificate_mismatch_no_request_sent
+  - send_http:
+      method: GET
+      path: /ping
+      headers: { Host: logs.uvexio.com, User-Agent: AI-security-analysis-PureLogs-NSE/1, Accept: text/plain, Connection: close }
+  - recv_http: { max_header_bytes: 1022, max_body_bytes: 2, body_as: body, header_as: header, status_as: http_status, content_length_as: body_size }
+  - match:
+      all:
+        - eq: { left: "$http_status", right: 200 }
+        - eq: { left: "$body_size", right: 2 }
+        - bytes_eq: { source: body, offset: 0, hex: "4f 4b" }
+        - bytes_regex: { source: header, pattern: '(?i)\r\ncontent-length:[ \t]*2[ \t]*\r\n' }
+        - not: { bytes_regex: { source: header, pattern: '(?i)\r\ncontent-encoding:' } }
+        - not: { bytes_regex: { source: header, pattern: '[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]' } }
+        - bytes_regex: { source: header, pattern: '^HTTP/1\.[01] 200 [^\r\n]+\r\n' }
+result:
+  family: purelogs
+  protocol: purelogs_https_ping
+  classification: probable
+  confidence: 0.70
+  unmatched_confidence: 0.0
+  status: purelogs_ping_probable_match
+  unmatched_status: purelogs_ping_response_mismatch
+  fields:
+    profile_id: purelogs-0f2abaab-logs-uvexio-8443-ping-v1
+    variant: http_aes_v5
+    generation_evidence_scope: family_level_public_research
+    sample_version_confirmed: false
+    excluded_variant: legacy_socket_3des
+    legacy_codec_implemented: false
+    certificate_sha256: "$hex:certificate_sha256"
+    http_status: "$http_status"
+    response_body_published: false
+    raw_response_published: false
+    tls_version_expected: TLSv1.2
+    tls_version_enforced: false
+    certificate_mismatch_excludes_c2: false
+    victim_metadata_sent: false
+    registration_attempted: false
+    task_poll_attempted: false
+    payload_download_attempted: false
+    request_body_sent: false
+    redirect_followed: false

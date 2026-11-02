@@ -4,6 +4,11 @@ https://github.com/proshiba/AI-security-analysis/tree/main/analysis-framework/nm
 
 ## 追加したマルウェア通信ルール
 
+PureLogs / PureRAT は2026-11-02に指定upstream commit `de40d143`と照合しました。
+`purelogs/https-ping.yaml`を追加し、`purerat/`の証明書一致をprobableへ変更しています。
+preludeはreview済みIPと固定ackが必須の互換仮説です。使い方と制限は
+[`purelogs/README.md`](purelogs/README.md)、[`purerat/README.md`](purerat/README.md)を参照してください。
+
 `condi/registration.yaml`は、[FortiGuard LabsのCondi解析](https://www.fortinet.com/blog/threat-research/condi-ddos-botnet-spreads-via-tp-links-cve-2023-1389)
 にある初回登録フレームを使う。報告された既定ID `c`で `33 66 99 01 63` を送信し、
 C2からの最初の3バイトが報告されたコマンド値の部分集合に一致するか調べる。

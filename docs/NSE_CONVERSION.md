@@ -5,7 +5,7 @@
 `nse2yaml`はNSEを実行するLua runtimeではない。外部から取得したNSEをdataとしてtokenizeし、
 対応済みprofileの通信と判定定数を静的に検証してから、制限付きDSL v1を生成する。
 
-この文書はstrict自動converterであるValleyRAT profileを扱う。upstream directoryの全12本を
+この文書はstrict自動converterであるValleyRAT profileを扱う。upstream directoryの初期12本と追加PureLogsを
 レビューして追加した保守対象YAMLとnative対応は`NSE_COVERAGE.md`を参照する。
 
 NSEは任意Luaを記述できるため、完全な自動変換は安全にも意味的にも成立しない。本実装は次を

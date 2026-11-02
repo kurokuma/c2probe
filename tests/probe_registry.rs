@@ -7,8 +7,13 @@ async fn every_maintained_yaml_compiles_with_review_parameters() {
     let parameters = HashMap::from([
         ("darkcomet.key_base64".into(), "MTIzNDU2Nzg=".into()),
         (
-            "purerat.expected_cert".into(),
-            "b3ae061b0b14a89d5134c279775b8f77a42214323c6bddab07f4d81ca2fc5c57".into(),
+            "purerat.acknowledge_profile".into(),
+            "purerat-e554-tirakian-legacy-prelude".into(),
+        ),
+        ("purerat.tirakian_ip".into(), "192.0.2.15".into()),
+        (
+            "purelogs.acknowledge_profile".into(),
+            "purelogs-0f2abaab-logs-uvexio-8443-ping-v1".into(),
         ),
         ("stealer.build".into(), "reviewed-build".into()),
         ("stealer.key_base64".into(), "MTIzNDU2Nzg=".into()),
@@ -34,7 +39,7 @@ async fn every_maintained_yaml_compiles_with_review_parameters() {
     .await
     .unwrap();
 
-    assert_eq!(probes.len(), 27);
+    assert_eq!(probes.len(), 28);
     let mut names = probes
         .iter()
         .map(|probe| probe.name.as_ref())
@@ -47,7 +52,7 @@ async fn every_maintained_yaml_compiles_with_review_parameters() {
 #[test]
 fn upstream_inventory_has_an_explicit_c2probe_mapping() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let mappings: [(&str, &[&str]); 12] = [
+    let mappings: [(&str, &[&str]); 13] = [
         (
             "agenttesla-ftp-c2.nse",
             &["probes/agenttesla/ftp-banner.yaml"],
@@ -77,6 +82,7 @@ fn upstream_inventory_has_an_explicit_c2probe_mapping() {
                 "probes/dotnet-rat/venomrat.yaml",
             ],
         ),
+        ("purelogs-c2.nse", &["probes/purelogs/https-ping.yaml"]),
         (
             "purerat-c2.nse",
             &[
@@ -121,7 +127,7 @@ fn upstream_inventory_has_an_explicit_c2probe_mapping() {
         ("xloader-c2.nse", &[]),
     ];
 
-    assert_eq!(mappings.len(), 12);
+    assert_eq!(mappings.len(), 13);
     for (source, files) in mappings {
         assert!(source.ends_with(".nse"));
         for file in files {

@@ -2,7 +2,7 @@
 
 対象は
 [`analysis-framework/nmap/scripts`](https://github.com/proshiba/AI-security-analysis/tree/main/analysis-framework/nmap/scripts)
-の12ファイルです。2026-08-17に初回取得し、2026-09-28に再取得して全件のSHA-256を照合しました。
+の初期12ファイルと、2026-11-02に指定コミットから追加した`purelogs-c2.nse`です。2026-08-17に初回取得し、2026-09-28に再取得して初期全件のSHA-256を照合しました。
 差分は`c2-transport-observe.nse`の1件のみです（後述）。NSEは任意Luaなので機械的な逐語変換は行わず、通信、境界値、判定確度、
 scopeをレビューしてc2probeの制限付きDSLまたは既存native機能へ対応付けました。
 
@@ -15,8 +15,9 @@ scopeをレビューしてc2probeの制限付きDSLまたは既存native機能�
 | `c2-transport-observe.nse` | `probes/observations/*.yaml`とdiscovery | observation / probable | server-first、TLS certificate、HTTP、HTTPS、N520受動観測は5 YAML。tcp-openは`--scan-mode discovery --output-mode open` |
 | `darkcomet-c2.nse` | `probes/darkcomet/{raw,ascii-hex}.yaml` | confirmed | reviewed RC4鍵を`darkcomet.key_base64`で明示する |
 | `dotnet-rat-c2.nse` | `probes/dotnet-rat/{asyncrat,venomrat}.yaml` | confirmed | byte-exact Ping、length frame、gzip、MessagePack key/valueを検証 |
-| `purerat-c2.nse` | `probes/purerat/prelude-tls-*.yaml` | observation / confirmed | `04000000`後に同一streamをTLS化。証明書一致ruleは期待SHA-256が必須 |
-| `purerat-direct-tls.nse` | `probes/purerat/direct-tls-d025.yaml` | confirmed | `45.192.211.77:56001`と証明書SHA-256をscopeへ固定 |
+| `purelogs-c2.nse` | `probes/purelogs/https-ping.yaml` | probable | 固定IP/port・証明書gate後のGET /ping、200/厳密なOK、固定profile acknowledgement必須 |
+| `purerat-c2.nse` | `probes/purerat/prelude-tls-*.yaml` | observation / probable | e554旧prelude互換仮説。tirakian.comのreview済みIP指定・ack必須、3 port限定、証明書は固定 |
+| `purerat-direct-tls.nse` | `probes/purerat/direct-tls-d025.yaml` | probable | `45.192.211.77:56001`と証明書SHA-256をscopeへ固定。期待TLS 1.0は再現不能 |
 | `redline-c2.nse` | `probes/redline/checkconnect-production.yaml` | confirmed | 固定endpointへSHA-256一致の357-byte request。応答XMLはcanonical namespace表現の4階層boolean envelope |
 | `stealer-http-c2.nse` | `probes/stealer-http/*.yaml` | confirmed / probable | StealCはRC4 tokenまで確認。Lumma/Remusは形状だけなのでprobable |
 | `stealer-route-c2.nse` | `probes/stealer-route/*.yaml` | probable | production 5 profile。明示IP pin、固定Host/path、HEAD、negative controlを保持 |
@@ -25,7 +26,7 @@ scopeをレビューしてc2probeの制限付きDSLまたは既存native機能�
 
 DNS observationとXLoader tcp-open observationを「C2判定YAML」に見せかけると、任意の名前解決や
 open portをC2として誤分類します。この2本はapplication probeを生成せず、native機能との対応を
-明示するのが意味的に同等です。従って、12/12に実行経路があり、application通信を持つ10/12は
+明示するのが意味的に同等です。従って、13/13に実行経路があり、application通信を持つ11/13は
 YAMLまたはYAML群へ変換されています。
 
 ## 必須パラメータ
@@ -33,7 +34,8 @@ YAMLまたはYAML群へ変換されています。
 | probe family | `--probe-param` | 制約・意味 |
 |---|---|---|
 | DarkComet | `darkcomet.key_base64=...` | reviewed RC4 key。結果やlogへ値を出さない |
-| PureRAT cert match | `purerat.expected_cert=<64 hex>` | leaf certificate SHA-256 |
+| PureRAT prelude | `purerat.tirakian_ip=<IP>`, `purerat.acknowledge_profile=purerat-e554-tirakian-legacy-prelude` | review済みtirakian.comのnumeric IP pin、固定ack。証明書はe554の値へ固定 |
+| PureLogs ping | `purelogs.acknowledge_profile=purelogs-0f2abaab-logs-uvexio-8443-ping-v1` | 固定endpoint・証明書・GET /ping profileの明示指定 |
 | StealC | `stealer.build=...`, `stealer.key_base64=...` | reviewed build IDとRC4 key |
 | Lumma | `stealer.uid=<32-64 hex>` | synthetic UID。`stealer.cid`は任意 |
 | Remus | `stealer.tag=<32 hex>`, `stealer.exp=<decimal>` | synthetic registration fields |
@@ -45,6 +47,21 @@ YAMLまたはYAML群へ変換されています。
 `--probe`でファイルを直接指定した場合は、設定漏れとして起動を失敗させます。
 
 ## upstream変更履歴
+
+### 2026-11-02照合 — PureLogs / PureRAT（commit `de40d143`）
+
+[指定コミット](https://github.com/proshiba/AI-security-analysis/commit/de40d143f8d213126ac0b337c0ee0ab038ae0322)
+からPureLogs HTTPS pingを追加し、PureRAT証明書一致をprobableへ変更しました。
+directは0.75、legacy preludeは互換仮説として0.60、不一致はいずれも0.0です。
+prelude観測はreview済みIPと3 portに限定し、結果familyはunclassifiedです。
+旧`purerat.expected_cert`による任意証明書指定を廃止しました。
+parameterの`allowed_values`でackをcompile時に検証します。
+
+詳細と表現差は`probes/purelogs/README.md`と`probes/purerat/README.md`を参照。
+PureLogsの固定body hashは厳密な2 byte `OK`比較で表現し、raw bodyは出力しません。
+NSEのhostname gateはnumeric scannerでは保持できないため、review済みtirakian.comの
+IP pinをoperatorが指定します。自動DNS確認や外部C2への接続は行っていません。
+下記snapshot表は2026-09-28時点の履歴であり、今回更新した3 NSEの新SHAを示しません。
 
 ### 2026-09-14 `c2-transport-observe.nse` — 受動TLSクラスタ観測（commit `b1ae80f3`）
 

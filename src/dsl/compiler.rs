@@ -94,6 +94,9 @@ pub async fn load_probes_with_params(
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ParameterSpec {
+    /// Restrict reviewed profile acknowledgements and other pinned values.
+    #[serde(default)]
+    allowed_values: Option<Vec<String>>,
     #[serde(default)]
     required: bool,
     #[serde(default)]
@@ -159,6 +162,13 @@ fn parse_parameterized_probe(
             return Err(MissingProbeParameter { name }.into());
         }
         validate_parameter(&name, &selected, definition.kind)?;
+        if definition
+            .allowed_values
+            .as_ref()
+            .is_some_and(|values| !values.contains(&selected))
+        {
+            bail!("probe parameter {name} is not an allowed value");
+        }
         if definition
             .min_length
             .is_some_and(|minimum| selected.len() < minimum)
