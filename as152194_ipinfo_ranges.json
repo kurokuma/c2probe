@@ -138,6 +138,12 @@
         "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
     },
     {
+        "name": "ctg_hk_118_107_8_0_23",
+        "cidr": "118.107.8.0/23",
+        "region": "Hong Kong",
+        "note": "AS152194 netblock listed by IPinfo; region follows the netblock company/resource-holder country."
+    },
+    {
         "name": "ctg_jp_134_122_174_0_23",
         "cidr": "134.122.174.0/23",
         "region": "Japan",
