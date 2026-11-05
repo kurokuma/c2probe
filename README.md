@@ -548,6 +548,7 @@ result/
     hosts.txt            # その日のIP一覧（1行1件）
     endpoints.txt        # その日のIP:PORT一覧
     hosts.csv            # その日のホスト単位集計
+    new_hosts.csv        # その日に初めて観測したIPのIP:PORT一覧
     SUMMARY.md           # GitHub上で読む用
     SUMMARY.json         # 機械処理用
     valleyrat/
@@ -597,7 +598,8 @@ GitHub Pagesの設定は Settings → Pages → Deploy from a branch → `main` 
 
 - **アドレス一覧**: IPのみ / IP:PORT / ネットワーク / CSV を切り替えてコピーできます。
   ブロックリストや別ツールへの受け渡し用です。同じ内容を`hosts.txt`、
-  `endpoints.txt`、`hosts.csv`としても書き出します
+  `endpoints.txt`、`hosts.csv`としても書き出します。`new_hosts.csv`には全期間で
+  その日に初めて観測したIPの当日のIP:PORTを1行1件で書き出します
 - **ホスト**: その日のホストをポート、probe、status、RTTつきで一覧。絞り込み可
 - **前日差分**: 新規・消失ホストの件数と、コピーできる一覧
 - **probeごとの詳細**: レンジ別検出数、集中度、ポート、ポート構成が一致するホスト群、
@@ -612,6 +614,7 @@ GitHub Pagesの設定は Settings → Pages → Deploy from a branch → `main` 
 | `result/<日付>/hosts.csv` | ホスト（その日） | host, ports, probes, statuses, records, syn_rtt_ms |
 | `result/<日付>/hosts.txt` | IP | 1行1件 |
 | `result/<日付>/endpoints.txt` | IP:PORT | 1行1件 |
+| `result/<日付>/new_hosts.csv` | 初回検出IPの当日のIP:PORT | 1行1件、見出しなし。該当なしなら空ファイル |
 | `result/<日付>/SUMMARY.json` | probe別 | 集計結果とホスト明細 |
 
 ```bash

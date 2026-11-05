@@ -1592,6 +1592,7 @@ def render_html_date(
         + html_link("hosts.txt", "hosts.txt")
         + html_link("endpoints.txt", "endpoints.txt")
         + html_link("hosts.csv", "hosts.csv")
+        + html_link("new_hosts.csv", "new_hosts.csv")
         + "</p>"
     )
 
@@ -1910,7 +1911,7 @@ def write_lines(path: Path, lines: Sequence) -> None:
     path.write_text(body + chr(10) if body else body, encoding='utf-8')
 
 
-def write_date_exports(date_directory: Path, summary: dict) -> None:
+def write_date_exports(date_directory: Path, summary: dict, first_seen_hosts: set) -> None:
     """Plain lists next to the JSONL, for blocklists and other tooling."""
     rows = date_host_rows(summary)
     write_lines(date_directory / "hosts.txt", [row["host"] for row in rows])
@@ -1919,6 +1920,15 @@ def write_date_exports(date_directory: Path, summary: dict) -> None:
         [
             format_endpoint(ipaddress.ip_address(row["host"]), port)
             for row in rows
+            for port in row["ports"]
+        ],
+    )
+    write_lines(
+        date_directory / "new_hosts.csv",
+        [
+            format_endpoint(ipaddress.ip_address(row["host"]), port)
+            for row in rows
+            if row["host"] in first_seen_hosts
             for port in row["ports"]
         ],
     )
@@ -1969,6 +1979,10 @@ def build_site(root: Path, dates: Sequence, top: int, minimum_cluster: int) -> i
                 else 0,
             }
         )
+    overview = build_overview(dates)
+    first_seen_by_date = {
+        day["date"]: set(day["first_seen_hosts"]) for day in overview["per_date"]
+    }
     for index, (date_directory, summary, comparison) in enumerate(summaries):
         previous = dates[index - 1].name if index else None
         following = dates[index + 1].name if index + 1 < len(dates) else None
@@ -1977,7 +1991,7 @@ def build_site(root: Path, dates: Sequence, top: int, minimum_cluster: int) -> i
             date_directory / "index.html",
         )
         emit(render_markdown(summary, comparison, top), date_directory / "SUMMARY.md")
-        write_date_exports(date_directory, summary)
+        write_date_exports(date_directory, summary, first_seen_by_date[date_directory.name])
         emit(
             json.dumps(
                 json_ready({"summary": summary, "comparison": comparison}),
@@ -1986,7 +2000,6 @@ def build_site(root: Path, dates: Sequence, top: int, minimum_cluster: int) -> i
             ),
             date_directory / "SUMMARY.json",
         )
-    overview = build_overview(dates)
     emit(render_html_index(overview, entries, generated, top), root / "index.html")
     write_exports(root, overview)
     # Without this, Pages hands the tree to Jekyll before publishing it.
