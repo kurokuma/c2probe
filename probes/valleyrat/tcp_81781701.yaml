@@ -1,0 +1,47 @@
+dsl_version: 1
+name: valleyrat-tcp-81781701
+metadata:
+  family: valleyrat
+  protocol: tcp_81781701
+  plan_order: 50
+  description: Match the response to one captured short TCP request.
+transport:
+  type: tcp
+  connect_timeout_ms: 1000
+  read_timeout_ms: 1000
+steps:
+  # VirusTotal sample 06f272750f81540d8cb1808be0b79c4e963bb67ff035cb96ee4d1568fe70ace6.
+  # PCAP packets 425 -> 438. The meaning of the short request is unverified.
+  - send:
+      hex: "81 78 17 01 1c 00 00 00 2e ca 3d 0c ba ba bd 24 00 d6 27 ff 2d c6 29 3e 96 84 92 c2 8a 9a 6a 56 06 98 51 ee"
+  - recv_exact:
+      bytes: 137
+      save_as: response
+  - extract:
+      source: response
+      name: declared_length
+      type: u32le
+      offset: 4
+  - match:
+      all:
+        - eq: { left: "$declared_length", right: 129 }
+        - bytes_eq:
+            source: response
+            offset: 0
+            hex: "81 78 17 01"
+        # Response bytes 8-11 followed by the echoed request bytes 12-29.
+        - bytes_eq:
+            source: response
+            offset: 8
+            hex: "2e ca bd 0b ba ba bd 24 00 d6 27 ff 2d c6 29 3e 96 84 92 c2 8a 9a"
+result:
+  family: valleyrat
+  protocol: tcp_81781701
+  confirmed: "$match"
+  confidence: 0.70
+  unmatched_confidence: 0.0
+  status: tcp_81781701_short_response_match
+  unmatched_status: tcp_81781701_short_response_mismatch
+  fields:
+    declared_length: "$declared_length"
+    followup_sent: false

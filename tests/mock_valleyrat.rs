@@ -205,6 +205,46 @@ async fn winos_01ca_rejects_different_session_identifier() {
 }
 
 #[tokio::test]
+async fn tcp_81781701_requires_the_complete_correlated_response() {
+    let compiled = probe("tcp_81781701.yaml").await;
+    assert!(compiled.allows("192.0.2.1".parse().unwrap(), 7799));
+
+    // Packet 438 supplies the response prefix. The remaining bytes do not enter the match.
+    let mut response =
+        hex::decode("81781701810000002ecabd0bbababd2400d627ff2dc6293e968492c28a9a").unwrap();
+    response.resize(137, 0);
+    let mut wrong_echo = response.clone();
+    wrong_echo[29] ^= 1;
+    let mut wrong_length = response.clone();
+    wrong_length[4] = 137;
+    let truncated = response[..136].to_vec();
+    for (reply, expected_status, confirmed) in [
+        (response, "tcp_81781701_short_response_match", true),
+        (wrong_echo, "tcp_81781701_short_response_mismatch", false),
+        (wrong_length, "tcp_81781701_short_response_mismatch", false),
+        (truncated, "connection_reset", false),
+    ] {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0u8; 36];
+            socket.read_exact(&mut request).await.unwrap();
+            assert_eq!(
+                hex::encode(request),
+                "817817011c0000002eca3d0cbababd2400d627ff2dc6293e968492c28a9a6a56069851ee"
+            );
+            socket.write_all(&reply).await.unwrap();
+        });
+        let result = execute(addr.ip(), addr.port(), &compiled).await;
+        server.await.unwrap();
+        assert_eq!(result.status, expected_status);
+        assert_eq!(result.confirmed, confirmed);
+        assert!(!result.probable);
+    }
+}
+
+#[tokio::test]
 async fn n520_matches_server_first_magic_and_crc() {
     let (addr, server) = spawn_n520_mock().await;
     let compiled = probe("n520.yaml").await;
