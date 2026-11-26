@@ -155,6 +155,56 @@ async fn winos_rejects_a_reflected_request() {
 }
 
 #[tokio::test]
+async fn winos_01ca_matches_captured_setup_exchange() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut request = [0u8; 16];
+        socket.read_exact(&mut request).await.unwrap();
+        assert_eq!(
+            request,
+            [
+                0x10, 0, 0, 0, 0x2d, 0x99, 0x58, 0x0e, 0, 0, 0, 0, 0xca, 0x01, 0xc8, 0xcd,
+            ]
+        );
+        socket
+            .write_all(&[
+                0x73, 0, 0, 0, 0x2d, 0x99, 0x58, 0x0e, 0, 0, 0, 0, 0xca, 0x01, 0xc8, 0xfc,
+            ])
+            .await
+            .unwrap();
+    });
+    let compiled = probe("winos_01ca.yaml").await;
+    let result = execute(addr.ip(), addr.port(), compiled.as_ref()).await;
+    server.await.unwrap();
+    assert!(result.confirmed, "{}", result.status);
+    assert_eq!(result.fields["declared_length"], 115);
+}
+
+#[tokio::test]
+async fn winos_01ca_rejects_different_session_identifier() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut request = [0u8; 16];
+        socket.read_exact(&mut request).await.unwrap();
+        socket
+            .write_all(&[
+                0x73, 0, 0, 0, 0x9c, 0x9e, 0x58, 0x0e, 0, 0, 0, 0, 0xca, 0x01, 0xc8, 0xfc,
+            ])
+            .await
+            .unwrap();
+    });
+    let compiled = probe("winos_01ca.yaml").await;
+    let result = execute(addr.ip(), addr.port(), compiled.as_ref()).await;
+    server.await.unwrap();
+    assert!(!result.confirmed);
+    assert_eq!(result.status, "winos_01ca_setup_response_mismatch");
+}
+
+#[tokio::test]
 async fn n520_matches_server_first_magic_and_crc() {
     let (addr, server) = spawn_n520_mock().await;
     let compiled = probe("n520.yaml").await;

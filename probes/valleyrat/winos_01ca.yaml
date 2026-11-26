@@ -1,0 +1,42 @@
+dsl_version: 1
+name: valleyrat-winos-01ca
+metadata:
+  family: valleyrat
+  protocol: winos_01ca
+  plan_order: 40
+  description: Winos 0x01ca setup-response fingerprint for ValleyRAT.
+transport:
+  type: tcp
+  connect_timeout_ms: 1000
+  read_timeout_ms: 1000
+steps:
+  # First 16 bytes of TCP payload, Triage 261015-gxvcasfy9y behavioral1 (packet 12163).
+  - send:
+      hex: "10 00 00 00 2d 99 58 0e 00 00 00 00 ca 01 c8 cd"
+  - recv_exact:
+      bytes: 16
+      save_as: response
+  - extract:
+      source: response
+      name: declared_length
+      type: u32le
+      offset: 0
+  - match:
+      all:
+        - eq: { left: "$declared_length", right: 115 }
+        # Check the echoed identifier, frame type, and response marker.
+        - bytes_eq:
+            source: response
+            offset: 4
+            hex: "2d 99 58 0e 00 00 00 00 ca 01 c8 fc"
+result:
+  family: valleyrat
+  protocol: winos_01ca
+  confirmed: "$match"
+  confidence: 0.95
+  unmatched_confidence: 0.35
+  status: winos_01ca_setup_response_match
+  unmatched_status: winos_01ca_setup_response_mismatch
+  fields:
+    declared_length: "$declared_length"
+    stage_requested: false
